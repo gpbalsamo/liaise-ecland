@@ -148,9 +148,29 @@ Q100(3 arcmin) / Q100(15 arcmin):  median 0.99x   mean 1.01x   range 0.32-2.11x
                                    higher at finer resolution: 8/19 dams
 ```
 
-e.g. Yesa 1895 -> 1888, Mediano 1065 -> 1041, Rialb 1719 -> 1748, Barasona
-690 -> 686, Calanda 1124 -> 1114. Mequinenza rises 1.19x and Caspe2 2.11x; the
-rest sit within a few percent.
+**15 of the 19 sit within +/-10% of 1.0** (Yesa 1895 -> 1888, Mediano 1065 ->
+1041, Rialb 1719 -> 1748, Barasona 690 -> 686, Calanda 1124 -> 1114, Flix
+5582 -> 5664). Four move materially:
+
+| dam | uparea | Q100 15min | Q100 3min | ratio |
+|---|---|---|---|---|
+| Santolea | 1229 km2 | 600 | 194 | **0.32x** |
+| LaPena | 1558 km2 | 1451 | 881 | **0.61x** |
+| Caspe2 | 3669 km2 | 646 | 1364 | **2.11x** |
+| Mequinenza | 57214 km2 | 2530 | 3012 | 1.19x |
+
+Their upstream areas barely change between grids, so this is not a siting
+artifact — it is genuinely different routed extremes at those cells. **Tested
+and rejected**: the obvious "small catchments are more resolution-sensitive"
+explanation does not hold — median |log ratio| is 4% for dams above 2000 km2
+and 3% below, Spearman(uparea, |log ratio|) = -0.05, and the four movers span
+1229 to 57214 km2. They are idiosyncratic cells, not a size class.
+
+Worth carrying into the dam work: **LaPena's 15 arcmin Q100 is inflated 1.6x**
+versus 3 arcmin, and LaPena was one of the four dams the overshoot screen
+flagged as Flix-like (that screen used 15 arcmin Qf = 0.3*Q100). Some of that
+flagging may itself be a coarse-resolution artifact — another reason to move
+the reservoir work to 6 arcmin.
 
 **Interpretation**: at a cell whose catchment the grid already resolves, the
 100-year flood is set by the upstream water balance, not by how finely the

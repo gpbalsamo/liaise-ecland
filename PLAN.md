@@ -244,7 +244,51 @@ Tested the natural follow-on hypothesis — combine "exclude Flix" with `LDAMYBY
 
 **Four different configurations now, all failing at the identical calendar date, 19880520, via at least two distinct mechanisms** (negative storage at inactive cells; non-negative-storage instability in the release-rule's case-2/3/4 fractional-power terms). That consistency across configurations is itself the most important new data point: it's hard to explain by one dam's bad parameters alone, and much more consistent with **a genuinely extreme inflow event in the 1988 WFDE5 forcing landing around day ~141** that pushes several dams' inflow past their own `Qf` (itself a Q100-derived design threshold) simultaneously — i.e. the *event*, not any single dam, may be the real trigger, with different dams being the numerically weakest link depending on which are active/excluded.
 
-### ROOT CAUSE IDENTIFIED 2026-09-17: unguarded `(DamVol/ConVol)**0.5` on an empty reservoir
+### 6 arcmin with dams, 2026-09-18: the crash date MOVED for the first time
+
+Job `38445030`, full 44-dam 6 arcmin set (no manual exclusions; Flix and LaPena
+both in), parameters rebuilt from `ebro_dam_q100_06min.csv` with the corrected
+allocation, `cama_flood/data_dam_06min/` statics. Result: **still crashes
+(SIGFPE, status 134), but at 19880724 instead of 19880520** — 65 days further,
+and the **first time in seven configurations that the date has moved at all**.
+
+That is real evidence the allocation fix mattered: the reservoirs that were
+being over-drained by an inflated `Qn` (Eugui 15 d -> 147 d to empty, Irabia
+14 d -> 68 d, Ordunte dropped from the domain entirely) no longer fail early.
+It is also the parameter set we want regardless — 44 dams in, 44 out, because
+at 6 arcmin every reservoir has its own cell and the co-location dedup never
+fires (at 15 arcmin it silently discarded six).
+
+**But the failure mode is unchanged and now broader**: at the crash, **33 of 44
+active reservoirs sit at essentially zero storage**, against 7 of 37 at
+15 arcmin.
+
+Two explanations tested and **both refuted**:
+
+- *"Mediterranean summer dries the inflow up"* — no. At the 6 arcmin dam cells
+  in 1988, Jun-Aug inflow is mostly **above** each dam's own `Qn` (ElGrado1
+  1.16x, Oliana 1.28x, Flix 1.63x, SantaAna 1.73x); only **6 of 44** cells have
+  summer inflow below their annual mean. Pyrenean snowmelt sustains summer flow,
+  and 1988 is the wettest year in the archive.
+- *"Storage is tiny relative to throughflow"* — only for a handful. Residence
+  time `ConVol/Qn` is under a week for just **3 of 44** dams (Flix 7.2 h,
+  SanLorenzoMongay 37.6 h, Ribarroja 5.5 d); the median is **284 days**.
+
+**So it is still unexplained why so many reservoirs sit at zero while receiving
+more than their mean flow.** The proximate crash mechanism is not in doubt (see
+below), but the reason the reservoirs reach the singular point is.
+
+**Leading remaining candidate, untested**: `Qn*(DamVol/ConVol)**0.5` has an
+unbounded derivative as `DamVol -> 0`, so the release rule is infinitely stiff at
+the empty end. A reservoir hovering near zero, integrated with a 1 h coupling
+step at a cell deliberately excluded from `CALC_ADPSTP`, can overshoot straight
+through zero. That would explain why the failure always occurs at the empty end
+regardless of resolution, dam set or flow regime. Worth checking how reservoirs
+are initialised at a **cold start** (as opposed to `LDAMYBY` activation, which
+`LiVnorm` governs and which was already shown inert) — if they all start at or
+near zero and fill slowly, they spend a long time in exactly that stiff region.
+
+### ROOT CAUSE (proximate) IDENTIFIED 2026-09-17: unguarded `(DamVol/ConVol)**0.5` on an empty reservoir
 
 After the LaPena test refuted the last dam-specific hypothesis (below), the
 traceback plus the source settle it. `ecland`'s

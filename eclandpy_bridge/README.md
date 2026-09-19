@@ -113,3 +113,12 @@ smaller point-site files, 45× faster time-series reads.
 no evaporation sink. `LROSPLIT` — surface and sub-surface runoff are passed separately; the
 Python chain combines them, equivalent while `LGDWDLY` is off. `namelist/input_cmf` has
 `LWEVAP=false`, `LGDWDLY=false`.
+
+Lake tile (2026-09-19): ecland-porting `cy50r1` now assigns the FLake tile `PFRTI(:,9)` in
+`surfbc` (N. Wedi's PR #1, merged as `c8385de`, plus PR #2's KSTEP==0 flux estimate and the
+`surfbc_class` twin fix `93728d5`). The 37-year run above predates it: 231 of the 368 LIAISE
+cells carry a lake fraction up to 0.04 that was then modelled as vegetation/bare soil. A 10-day
+1988 check on the merged code changes only those cells (mean |ΔAvgSurfT| 0.02 K, max 2.3 K;
+non-lake cells identical to round-off) and moves the domain RMSE against the Fortran control
+marginally down (AvgSurfT 5.977 → 5.963 K over the 10 days); PLUMBER2 sites have no lake cover
+and are bit-identical.

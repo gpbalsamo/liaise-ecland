@@ -123,7 +123,11 @@ with open(args.out, "w") as fh:
     fh.write(f"{len(final)}\n")
     fh.write("DamID DamName DamLat DamLon UpArea DamIX DamIY FldVol_mcm ConVol_mcm TotVol_mcm Qn Qf DamYear\n")
     for i, d in enumerate(final, start=1):
-        fh.write(f'{i} "{d["name"]}" {d["lat"]} {d["lon"]} {d["uparea_km2"]} {d["ix"]} {d["iy"]} '
+        # estimate_dam_q100.py's ix/iy are 0-based numpy indices; CMF_DAMOUT_INIT
+        # uses DamIX/DamIY as 1-based Fortran indices (IX<=0 .or. IX>NX rejects,
+        # then D2... (IX,IY) addressing), so shift by one here or every dam lands
+        # one cell north-west of its river.
+        fh.write(f'{i} "{d["name"]}" {d["lat"]} {d["lon"]} {d["uparea_km2"]} {d["ix"] + 1} {d["iy"] + 1} '
                   f'{d["fldvol_mcm"]} {d["convol_mcm"]} {d["totvol_mcm"]} {d["qn"]} {d["qf"]} {d["year"]}\n')
 
 print(f"wrote {args.out}")

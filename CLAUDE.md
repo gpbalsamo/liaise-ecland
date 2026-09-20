@@ -1770,6 +1770,65 @@ mtimes vs. job timestamps) before accepting either side's explanation, and
 check whether the "reference" artifact being compared against is itself the
 stale one.
 
+### Dam crash fixed: negative reservoir storage from a mismatched inflow (2026-09-20)
+
+The seven crashing dam configurations (see PLAN.md, "Reservoir operation")
+had one proximate cause, already identified: `(DamVol/ConVol)**0.5` on a
+negative storage. What drives storage negative is now read off the source:
+`CMF_DAMOUT_CALC` decides the release from `P2DAMINF` (the kinematic estimate
+`UPDATE_INFLOW` builds) and caps it at `DamVol/DT`, but `CMF_DAMOUT_WATBAL`
+updates `P2DAMSTO` with a *different* inflow, `D2RIVINF+D2FLDINF+D2RUNOFF`
+recomputed after `CMF_CALC_INFLOW`'s water-budget adjustment. A reservoir at
+zero is therefore debited more than it is credited by a rounding amount, and
+the next step raises a negative base to 0.5 -- SIGFPE under `-fpe0`. In the
+6 arcmin crash record 12 active reservoirs sat at 0.00 at the crash. The
+three large negatives (Itoiz -30, Rialb -10, Pajares -10 MCM) are dams not
+yet built in 1988: their `P2DAMSTO` is a dead accumulator that `WATBAL` keeps
+updating (it skips only `IMIS`) and `CMF_DAMOUT_INIT` re-initialises at
+activation, so those are cosmetic and not the crash. The plan's remaining
+candidates ("infinitely stiff rule", "reservoirs start empty") are refuted:
+every active dam starts at `ConVol` (INIT lines 265-267).
+
+**Fix** (8 lines, `cmf_ctrl_damout_mod.F90`): evaluate the rule on
+`MAX(DamVol,0)` and floor the updated storage at zero in `WATBAL`, leaving
+the shortfall in `DamMiss` so the budget diagnostic still reports it.
+Applied in an isolated worktree, **not** in the shared `/perm/pad/ecland`
+(a rebuild there once corrupted a running job): `ecland-damfix` at the
+pinned binary's commit `55f3d24`, branch `damout-negative-storage-guard`
+(commit `9c7f277`), built by an isolated bundle
+`ecland-damfix-build/` that shares the pinned build's `fiat`/`field_api`/
+`eccodes` checkouts, pinned RPATH-correctly as `run/bin_damfix/{bin,lib64}`.
+Test on the exact crashing configuration (1988, glb_06min, 44 dams,
+`cama_flood/data_dam_06min`, `namelist/input_cmf_dam`): **status 0, full
+year, 1466 damtxt records**, `|DamMiss|` max 6e-6 km3 (rounding level, so the
+floor is not hiding a leak). Full 37-year dam run launched with it: job
+`39098454`, `RUN_ROOT=/perm/pad/liaise_cmf_1988_2024_dam_06min` (the crashed
+unpatched attempt kept as `..._crashed_unpatched`).
+
+**And then the real reason the reservoirs were empty -- a second bug,
+found because the run now survived long enough to show it.** In the passing
+year 15 of 37 active reservoirs sat at zero most of the time (LaPena 99 % of
+steps, Irabia 81 %, Flix 80 %, ElGrado1 61 %) while their *inflow* was 2-50x
+below their own `Qn` (ElGrado1 0.02x, LaPena 0.03x) -- impossible in the
+wettest year of the archive if `Qn` were the naturalised mean at that cell.
+It was not that cell: `estimate_dam_q100.py` writes 0-based numpy `ix/iy`
+(correct in Python, `lat[iy]` matches the dam), `build_dam_param_csv.py`
+copied them verbatim into `DamIX/DamIY`, and `CMF_DAMOUT_INIT` uses those as
+1-based Fortran indices -- so **every dam was placed one cell north-west of
+its river**, on a headwater cell with ~0.5 m3/s (ElGrado1: `uparea` 99 km2
+instead of 2164). Verified on all three historical CSVs (`data_dam_firstpass`,
+`data_dam_noflix_nolapena`, `data_dam_06min`): 0 of 38/37/44 dams on their
+river as written, all of them on it once shifted by one. Fixed in the writer
+(`ix+1, iy+1`), CSV regenerated, `uparea[DamIY-1,DamIX-1] == UpArea` for
+44/44. So the seven crashes were: reservoirs starved by mis-siting drain to
+zero -> rounding undershoot from the WATBAL/CALC inflow mismatch -> `**0.5`
+on a negative base. Both fixes are needed: the guard alone let a mis-sited
+run finish (and would have let a "reservoirs are always empty" result stand);
+the siting alone would still crash the first time a real reservoir empties.
+The mis-sited 37-year launch (job 39098454) was cancelled. Report upstream:
+the guard and the `WATBAL`-vs-`CALC` inflow inconsistency (ecland/CaMa-Flood);
+the index convention is ours.
+
 ### Pinned binaries: the executable's RPATH is `$ORIGIN/../lib64` (2026-09-16)
 
 `ecland-master-dp` finds its own `libecland_surf_dp.so`/`libfiat.so`/... via

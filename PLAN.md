@@ -185,6 +185,60 @@ where every dam also gets its own cell so `build_dam_param_csv.py`'s
 co-location dedup stops discarding six reservoirs. Q100 tables:
 `/perm/pad/liaise_discharge_compare/ebro_dam_q100_{15min,06min,03min}.csv`.
 
+## Where GloFAS is (2026-09-20) -- so nobody searches $PERM for it again
+
+There is **no GloFAS discharge file under `/perm/pad`**. What exists:
+- `/perm/pad/flood_cases/grib_15arcmin/Globe_river_flood_YYYYMM.grb` (1980-01 ..
+  2025-12, 64 GB): `class=rd, expver=iyp3, stream=oper, type=fc`, 6-hourly
+  `avg_dis` (235270) and `avg_fldffr` (235275) on the global 0.25 deg grid --
+  the **IFS-coupled CaMa-Flood** reanalysis-forced experiment, not GloFAS.
+  Usable as a third CaMa-Flood chain (IFS forcing, 15 arcmin, 1988-2024).
+- `/perm/pad/glofas/`: CaMa-Flood parameter/analysis products for 2016-2022
+  (`ana_cmf_*`, `camaflood_dis*.grib`, `CMF_2018*.zarr`), not LISFLOOD output.
+- `/perm/pad/GloFAS-bench`, `/perm/pad/benchmark_cmf_gp4hydro_vs_glofas_*`,
+  `ifs-riverbench/Workflow/dashboard_data/glofas_v4`: *scored* CaMa-vs-GloFAS
+  products for 2018-2022 (KGE maps, station metrics), not discharge.
+- **GloFAS v5.0 / LISFLOOD daily discharge itself is in MARS**:
+  `class=gf, stream=rfsd, type=sfo, forcing=ecmf-era5, param=235270, step=24`
+  (per `ifs-riverbench/Workflow/benchmark_cmf_vs_glofas5.py`). The Ebro box
+  1988-2024 at 0.05 deg is ~13.5k daily fields, ~1 GB: retrieve with `mars`,
+  not the CDS.
+
+## GloFAS yardstick, first cut: GloFAS v4 vs ecLand-CaMa naturalised, 2018-2022 (2026-09-20)
+
+`ifs-riverbench/Workflow/dashboard_data/glofas_v4/20180101_20221231_15arcmin/`
+holds, per riverbench station, the **daily GloFAS v4 discharge and the
+matched observations** for 2018-2022 (station JSONs), so a same-days
+comparison needs no retrieval. Extracted the 43 Iberian stations to
+`/perm/pad/liaise_discharge_compare/glofas_v4_ebro_stations_2018_2022.json`;
+27 of them sit on our 6 arcmin Ebro network with a matching drainage area.
+Scored our naturalised 6 arcmin run on exactly the same days and observation
+values (`glofas_v4_vs_ecland_cama_nat_2018_2022.json`):
+
+| 27 Ebro stations, 1826 days | GloFAS v4 (LISFLOOD, calibrated, reservoirs) | ecLand-CaMa 6 arcmin, naturalised, uncalibrated |
+|---|---|---|
+| median KGE | **0.214** | 0.071 |
+| better on KGE | 15/27 | 12/27 |
+| median PBIAS | +13.0 % | -28.5 % |
+
+The pattern is the interesting part: GloFAS wins the regulated Ebro
+main-stem and the big tributaries (Castejon 0.76 vs 0.43, Mendavia 0.74 vs
+0.15, Zaragoza 0.63 vs 0.45, Gallego 0.75 vs 0.21, Cinca-Fraga 0.45 vs 0.11),
+i.e. where reservoirs and calibration matter; our run wins at Tortosa/Asco
+(0.64/0.57 vs 0.50/0.53, PBIAS 0 vs +30 %) and at the semi-arid tributaries
+where GloFAS over-predicts grossly (Jalon +387 %/+144 %, Arba en Ejea
++707 %, Alhama +411 %, Jiloca +176 %) while we under-predict moderately.
+So the dam module's job is precisely the gap at Castejon/Mendavia/Zaragoza/
+Fraga. When job 39102478 reaches 2018-2022, rerun the same script with the
+dam run to get the three-way table on identical days.
+
+GloFAS v5 (ERA5-forced) for the full 1988-2024: the riverbench benchmark
+script documents it as MARS `class=gf, stream=rfsd, type=sfo, model=lisflood,
+configuration=v5.0, forcing=ecmf-era5, timespan=24h, expver=1, step=24`, but
+`mars list`/`retrieve` for 1988/2000/2018 under those keys returned nothing
+tonight -- confirm the keys (database/expver) with the script's author before
+scheduling the ~1 GB Ebro-box retrieval.
+
 ## Interim: dams vs naturalised, first 8 years at 6 arcmin (2026-09-20, job 39102478 still running)
 
 Scored with `skill_benchmark_resolution.py --resolution 06min` on the identical

@@ -105,14 +105,38 @@ def restore_state(driver, snap: dict) -> None:
     missing = [n for n in want if n not in have]
     if missing:  # a snapshot from an older OfflineState layout: refuse rather than half-restore
         raise RuntimeError(f"restart lacks carried fields {missing}; re-run from a cold start")
-    driver.state = OfflineState(**{n: (dict(have[n]) if isinstance(have[n], dict) else have[n]) for n in want})
+    def _fit_tiles(name, value):
+        """Pad per-tile state when the restart predates a tile-count change (e.g. LEURBAN off -> on).
+
+        The per-tile carries (ptskti, ustrti, vstrti, ahfsti, evapti) are (npoi, ntiles); a restart
+        written with 9 tiles cannot be injected into a 10-tile driver. Seed the new tile from the
+        bare-soil tile (index 7), the closest surface to an urban one, rather than refusing the
+        restart -- a diagnostic run then starts from the chained state instead of a cold start, and
+        the seeded tile is overwritten by the first timestep's own solve.
+        """
+        import numpy as _np
+
+        if not isinstance(value, _np.ndarray) or value.ndim != 2:
+            return value
+        want_nt = int(driver.binder.ntiles)
+        if value.shape[1] == want_nt:
+            return value
+        if value.shape[1] > want_nt:
+            return value[:, :want_nt]
+        pad = _np.repeat(value[:, 7:8], want_nt - value.shape[1], axis=1)
+        print(f"  restart: padded {name} from {value.shape[1]} to {want_nt} tiles (seeded from bare soil)")
+        return _np.concatenate([value, pad], axis=1)
+
+    driver.state = OfflineState(**{
+        n: (dict(have[n]) if isinstance(have[n], dict) else _fit_tiles(n, have[n])) for n in want
+    })
     if driver.carbon and "carbon_acc" in snap:
         driver._carbon_acc = dict(snap["carbon_acc"])
 
 
 def run_one_year(
     year: int, restart_in: Path | None, restart_out: Path, out_dir: Path,
-    max_steps: int | None = None, with_fluxes: bool = False,
+    max_steps: int | None = None, with_fluxes: bool = False, namelist: str = "cy48r1",
 ) -> None:
     # ecland_porting imports MUST come after adapter.build() -- _io_shim.install() (which build()
     # calls first) must run before ecland_porting.setup is ever imported anywhere in the process,
@@ -127,6 +151,7 @@ def run_one_year(
         final_date=year * 10000 + 1231,
         group="LIAISE",
         forcing_type="2d",
+        namelist=namelist,
     )
     driver = physics_run.driver
 
@@ -190,6 +215,9 @@ def main() -> None:
     p.add_argument("--year-end", type=int, required=True)
     p.add_argument("--out-root", type=Path, default=BRIDGE_ROOT / "output")
     p.add_argument("--restart-root", type=Path, default=BRIDGE_ROOT / "restart")
+    p.add_argument("--namelist", default="cy48r1",
+                   help='ecland_porting config: "cy48r1" (9 tiles) or "cy48r1_urban" (10 tiles, '
+                        'LEURBAN=T as the Fortran LIAISE control runs it)')
     p.add_argument("--with-fluxes", action="store_true",
                    help="also write o_efl.nc (surface energy balance) and o_sus.nc (albedo/LAI/z0)")
     p.add_argument("--smoke-steps", type=int, default=None,
@@ -208,6 +236,7 @@ def main() -> None:
             out_dir=args.out_root / str(year),
             max_steps=args.smoke_steps,
             with_fluxes=args.with_fluxes,
+            namelist=args.namelist,
         )
 
 

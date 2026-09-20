@@ -1825,7 +1825,19 @@ zero -> rounding undershoot from the WATBAL/CALC inflow mismatch -> `**0.5`
 on a negative base. Both fixes are needed: the guard alone let a mis-sited
 run finish (and would have let a "reservoirs are always empty" result stand);
 the siting alone would still crash the first time a real reservoir empties.
-The mis-sited 37-year launch (job 39098454) was cancelled. Report upstream:
+The mis-sited 37-year launch (job 39098454) was cancelled. **Retests with both fixes,
+1988 (2026-09-20):** glb_06min (44 dams) status 0, full year, `|DamMiss|` 5e-6
+km3; reservoirs now behave as reservoirs -- 5.7 % of reservoir-steps at zero
+(was 21 % mis-sited), 5 of 37 ever empty (was 15), median inflow/`Qn` 1.66
+(wettest year), median end-of-year fill 75 % of `ConVol` (was 32 %); the
+remaining empties (Irabia, LaPena part-year) are a `Qn` calibration signal.
+glb_15min with a corrected 35-dam set (`cama_flood/data_dam_15min_fixed`,
+one-dam-per-cell dedup still drops ten): **also status 0, full year** -- the
+first 15 arcmin dam configuration ever to survive, so resolution was never
+the stability issue; 6 arcmin stays the production choice for siting (44/44
+dams on their own correctly-sized cell) and gauge skill, not for stability.
+37-year 6 arcmin dam run relaunched with both fixes: job `39102478`,
+`RUN_ROOT=/perm/pad/liaise_cmf_1988_2024_dam_06min`. Report upstream:
 the guard and the `WATBAL`-vs-`CALC` inflow inconsistency (ecland/CaMa-Flood);
 the index convention is ours.
 

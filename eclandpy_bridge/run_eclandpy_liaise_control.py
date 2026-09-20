@@ -130,7 +130,7 @@ def run_one_year(
     )
     driver = physics_run.driver
 
-    from ecland_porting.offline.diag_output import WAT_VARS, EVA_VARS, EFL_VARS, SUS_VARS
+    from ecland_porting.offline.diag_output import WAT_VARS, EVA_VARS, EFL_VARS, SUS_VARS, CLD_VARS
     from ecland_porting.offline.diag_writer import DiagRecorder
     from ecland_porting.offline.writer import OutputRecorder
 
@@ -153,6 +153,7 @@ def run_one_year(
     if with_fluxes:
         extra["o_efl.nc"] = DiagRecorder(physics_run.run, EFL_VARS, nfrpos=1)
         extra["o_sus.nc"] = DiagRecorder(physics_run.run, SUS_VARS, nfrpos=1)
+        extra["o_cld.nc"] = DiagRecorder(physics_run.run, CLD_VARS, nfrpos=1)  # SnowFrac etc.
 
     def on_diag(nstep, diag):
         wat_rec.accumulate(nstep, diag)

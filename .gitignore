@@ -81,3 +81,8 @@ eclandpy_bridge/cmfgpu_out/
 eclandpy_bridge/cmfgpu_out_gpu*/
 eclandpy_bridge/dashboard_eclandpy/
 eclandpy_bridge/logs/
+eclandpy_bridge/output_v2/
+eclandpy_bridge/restart_v2/
+eclandpy_bridge/cmfgpu_runoff_gpu*/
+eclandpy_bridge/dashboard_eclandpy_v1/
+eclandpy_bridge/dashboard_eclandpy_v2/

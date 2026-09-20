@@ -16,7 +16,9 @@
 # `pip install -e eclandpy[cmfgpu]` there), gcc/11.2.0 + cuda/12.6 for PyTorch's CUDA JIT.
 # Reads only files the land run has finished writing: run it AFTER job eclpy_liaise_gpu ends.
 #
-# Usage: bash submit_cmfgpu_eclandpy_chain.sh [year_start] [year_end] [out_tag]
+# Usage: bash submit_cmfgpu_eclandpy_chain.sh [year_start] [year_end] [out_tag] [land_out_dir]
+#   land_out_dir: the land run's output root (default output_gpu); with a tag the runoff
+#   files go to cmfgpu_runoff<tag> so several land runs can be routed side by side
 
 set -eu
 set -o pipefail
@@ -27,9 +29,11 @@ CMF_INP="/perm/pad/CaMa-Flood-GPU-run/inp/liaise"
 Y0="${1:-1988}"
 Y1="${2:-2024}"
 TAG="${3:-}"
+LAND="${4:-output_gpu}"
+RUNOFF="cmfgpu_runoff_gpu${TAG}"
 OUT="${BRIDGE_ROOT}/cmfgpu_out_gpu${TAG}"
 
-mkdir -p "${BRIDGE_ROOT}/logs" "${BRIDGE_ROOT}/cmfgpu_runoff_gpu" "${OUT}"
+mkdir -p "${BRIDGE_ROOT}/logs" "${BRIDGE_ROOT}/${RUNOFF}" "${OUT}"
 
 sbatch \
   --job-name="cmfgpu_eclpy" \
@@ -45,19 +49,19 @@ sbatch \
     export PYTHONPATH='${ECLANDPY_SRC}'
     cd '${BRIDGE_ROOT}'
     for y in \$(seq ${Y0} ${Y1}); do
-      src=output_gpu/\$y/o_wat.nc; dst=cmfgpu_runoff_gpu/runoff_\$y.nc
+      src=${LAND}/\$y/o_wat.nc; dst=${RUNOFF}/runoff_\$y.nc
       [ -f \"\$src\" ] || { echo \"MISSING \$src -- land run incomplete\"; exit 1; }
       [ -f \"\$dst\" ] || python3 -m eclandpy.cmfgpu.runoff --o-wat \"\$src\" --out \"\$dst\"
     done
     python3 -m eclandpy.cmfgpu.chain \
       --parameters '${CMF_INP}/parameters_liaise.nc' --mapping '${CMF_INP}/runoff_mapping_liaise.npz' \
-      --runoff-dir cmfgpu_runoff_gpu --out-dir '${OUT}' --years ${Y0} ${Y1} --experiment eclandpy_liaise
+      --runoff-dir ${RUNOFF} --out-dir '${OUT}' --years ${Y0} ${Y1} --experiment eclandpy_liaise
     for y in \$(seq ${Y0} ${Y1}); do
       python3 -m eclandpy.cmfgpu.discharge \
         --hourly '${OUT}'/eclandpy_liaise_\$y/total_outflow_mean_rank0.nc \
         --parameters '${CMF_INP}/parameters_liaise.nc' \
         --out '${OUT}'/eclandpy_liaise_\$y\_discharge_daily.nc \
-        --note 'eclandpy gt:gpu land run, -(Qs+Qsb), river storage chained from 1988 (eclandpy.cmfgpu)'
+        --note 'eclandpy land run ${LAND}, -(Qs+Qsb), river storage chained from 1988 (eclandpy.cmfgpu)'
     done
     cd /perm/pad/liaise-ecland/cama_flood
     for y in 1988 1995 2000 2003 2005; do

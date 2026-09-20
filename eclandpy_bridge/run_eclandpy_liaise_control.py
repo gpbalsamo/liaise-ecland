@@ -112,7 +112,7 @@ def restore_state(driver, snap: dict) -> None:
 
 def run_one_year(
     year: int, restart_in: Path | None, restart_out: Path, out_dir: Path,
-    max_steps: int | None = None,
+    max_steps: int | None = None, with_fluxes: bool = False,
 ) -> None:
     # ecland_porting imports MUST come after adapter.build() -- _io_shim.install() (which build()
     # calls first) must run before ecland_porting.setup is ever imported anywhere in the process,
@@ -130,7 +130,7 @@ def run_one_year(
     )
     driver = physics_run.driver
 
-    from ecland_porting.offline.diag_output import WAT_VARS, EVA_VARS
+    from ecland_porting.offline.diag_output import WAT_VARS, EVA_VARS, EFL_VARS, SUS_VARS
     from ecland_porting.offline.diag_writer import DiagRecorder
     from ecland_porting.offline.writer import OutputRecorder
 
@@ -146,10 +146,19 @@ def run_one_year(
     wat_rec = DiagRecorder(physics_run.run, WAT_VARS, nfrpos=1)
     eva_rec = DiagRecorder(physics_run.run, EVA_VARS, nfrpos=1)
     gg_rec = OutputRecorder(physics_run.run, nfrpos=1)
+    # --with-fluxes: the surface energy balance (o_efl) and the radiative/roughness state (o_sus),
+    # for attributing an eclandpy-vs-Fortran skin-temperature difference to a flux term rather
+    # than guessing. Off by default: two more recorders cost ~1 ms/step and ~1 GB/year.
+    extra = {}
+    if with_fluxes:
+        extra["o_efl.nc"] = DiagRecorder(physics_run.run, EFL_VARS, nfrpos=1)
+        extra["o_sus.nc"] = DiagRecorder(physics_run.run, SUS_VARS, nfrpos=1)
 
     def on_diag(nstep, diag):
         wat_rec.accumulate(nstep, diag)
         eva_rec.accumulate(nstep, diag)
+        for r in extra.values():
+            r.accumulate(nstep, diag)
 
     driver.run(nsteps, on_step=gg_rec.maybe_record, on_diag=on_diag)
 
@@ -160,7 +169,11 @@ def run_one_year(
     wat_rec.write(str(wat_path))
     eva_rec.write(str(eva_path))
     gg_rec.write(str(gg_path))
-    for p in (wat_path, eva_path, gg_path):
+    written = [wat_path, eva_path, gg_path]
+    for name, rec in extra.items():
+        rec.write(str(out_dir / name))
+        written.append(out_dir / name)
+    for p in written:
         _add_latlon(p)
 
     restart_out.parent.mkdir(parents=True, exist_ok=True)
@@ -175,6 +188,8 @@ def main() -> None:
     p.add_argument("--year-end", type=int, required=True)
     p.add_argument("--out-root", type=Path, default=BRIDGE_ROOT / "output")
     p.add_argument("--restart-root", type=Path, default=BRIDGE_ROOT / "restart")
+    p.add_argument("--with-fluxes", action="store_true",
+                   help="also write o_efl.nc (surface energy balance) and o_sus.nc (albedo/LAI/z0)")
     p.add_argument("--smoke-steps", type=int, default=None,
                     help="Truncate every year to this many steps -- fast multi-year loop smoke "
                          "test (e.g. confirming _io_shim.install() idempotency across years) "
@@ -190,6 +205,7 @@ def main() -> None:
             restart_out=restart_out,
             out_dir=args.out_root / str(year),
             max_steps=args.smoke_steps,
+            with_fluxes=args.with_fluxes,
         )
 
 

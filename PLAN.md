@@ -185,6 +185,35 @@ where every dam also gets its own cell so `build_dam_param_csv.py`'s
 co-location dedup stops discarding six reservoirs. Q100 tables:
 `/perm/pad/liaise_discharge_compare/ebro_dam_q100_{15min,06min,03min}.csv`.
 
+## Interim: dams vs naturalised, first 8 years at 6 arcmin (2026-09-20, job 39102478 still running)
+
+Scored with `skill_benchmark_resolution.py --resolution 06min` on the identical
+228 (station, year) keys, 1988-1995, 45 gauges, dam run vs the naturalised
+6 arcmin control (`/perm/pad/liaise_discharge_compare/skill_06min_{dam,nat}_partial.json`).
+Gauges split by whether a GRanD dam of `data_dam_06min` lies upstream on the
+6 arcmin network (traced via nextx/nexty): 14 regulated gauges, 31 natural.
+
+| | n | dam beats natural (KGE) | median KGE nat -> dam | median PBIAS nat -> dam |
+|---|---|---|---|---|
+| all | 228 | 68/228 | 0.060 -> 0.050 | -40.1 -> -41.2 % |
+| regulated | 71 | 27/71 | 0.126 -> 0.107 | -31.5 -> -37.7 % |
+| natural | 157 | 41/157 | 0.027 -> 0.027 | unchanged (sanity check: the module leaves undammed reaches alone) |
+
+Reading: with **default, uncalibrated** parameters (Qn = naturalised mean, Qf =
+0.3*Q100, FldVol = 37 % of capacity, no GRSAD normal volume) the reservoir
+module is roughly skill-neutral in aggregate and slightly negative on volume
+(it holds water back that the naturalised run passed through, deepening the
+under-prediction that both runs already have). Two large effects go opposite
+ways: Cinca at Fraga, below the Mediano/ElGrado/Barasona irrigation set,
+improves from KGE -1.63 to +0.26 (timing of the regulated releases), whereas
+Castejon/Estella/Andosilla/Huarte on the Aragon-Arga system lose 0.1-0.3 KGE
+and 4-14 points of PBIAS -- Yesa/Itoiz/Eugui storing too much with the
+constant-Qn rule. That is the calibration target the feasibility study set out
+(seasonal Qn, GRSAD normal volume); it is now measurable. Caspe (regulated,
+near-zero baseflow) remains metric-hostile (-26.9 -> -2.9). Re-score on the
+full 1988-2014 record when the job finishes; these 8 wet-decade years are not
+the final word.
+
 ## Paused tonight, not abandoned: Reservoir operation on the Ebro (CaMa-Flood v4.20 dam module)
 
 Full feasibility writeup: [Ebro Reservoir Operation](https://claude.ai/artifact/V5ZZxE3K4jFS6tsds5JiP3)

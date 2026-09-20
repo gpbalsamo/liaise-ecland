@@ -69,13 +69,40 @@ from the diagnostics JSONs and `docs/figures/`.
 
 ## Results (37 years, domain means over the 235 active land points)
 
-| | eclandpy (GPU) | Fortran control | bias | r |
-|---|---|---|---|---|
-| precipitation, mm/yr | 812.7 | 812.7 | 0 | 1.000 |
-| evapotranspiration | −654.5 | −668.3 | +13.8 (2 %) | 0.955 |
-| total runoff −(Qs+Qsb) | 160.8 | 203.4 | −42.6 (−21 %) | 0.848 |
-| surface T (AvgSurfT vs T2m), °C | 12.61 | 12.56 | +0.05 | 0.988 |
-| root-zone moisture, kg/m² | 410.8 | 445.3 | −34.6 | 0.711 |
+Two eclandpy chains exist. **v1** (Sept 2026, GPU) is the run the report and slides describe;
+**v2** (2026-09-20, CPU, `output_v2/`) repeats it on `ecland_porting` `cy50r1` after N. Wedi's
+FLake lake tile and KSTEP==0 flux estimate were merged. The Fortran control was itself re-run in
+September as a proper restart chain (it had been 37 independent one-year cold starts, each with a
+spurious start-up runoff pulse), and `control_run_diagnostics.json` regenerated on 17 September —
+so the control column below is **not** the one the published v1 dashboard shows.
+
+| | eclandpy v1 | eclandpy v2 | Fortran control | bias v1 | bias v2 |
+|---|---|---|---|---|---|
+| precipitation, mm/yr | 812.7 | 812.7 | 812.7 | 0 | 0 |
+| evapotranspiration | −654.5 | −658.1 | −662.2 | +7.7 | **+4.2** |
+| total runoff −(Qs+Qsb) | 160.8 | 161.8 | 157.5 | +3.3 (+2.1 %) | +4.3 (+2.7 %) |
+| surface T (AvgSurfT vs T2m), °C | 12.61 | 12.62 | 12.57 | +0.04 | +0.05 |
+| root-zone moisture, kg/m² | 410.8 | 411.9 | 405.9 | +4.9 | +6.0 |
+
+Annual correlation with the control is 0.999 for precipitation, evaporation and runoff, 0.989 for
+surface temperature. The 21 % runoff gap and the 34.6 kg/m² root-zone gap on the v1 dashboard were
+artefacts of the stale control and disappear for both versions.
+
+`compare_eclandpy_versions.py` compares two chains with the same control at every model step and
+cell (matching eclandpy's half-hourly records to the control's hourly ones on time values), split
+by cells that carry lake cover. Over the 37 years:
+
+| RMSE vs control | lake cells (220) | other land (15) | all land (235) |
+|---|---|---|---|
+| AvgSurfT, K | 0.344 → 0.331 (−3.9 %) | 0.2990 → 0.2990 (0.00 %) | 0.341 → 0.329 (−3.7 %) |
+| SoilTemp, K | 0.208 → 0.195 (−6.1 %) | unchanged | 0.208 → 0.196 (−5.7 %) |
+| SWE, kg/m² | 0.514 → 0.327 (−36.3 %) | unchanged | 0.498 → 0.318 (−36.3 %) |
+| SoilMoist, kg/m² | 11.14 → 11.21 (+0.6 %) | unchanged | 11.07 → 11.14 (+0.6 %) |
+
+The cells without lake cover are bit-identical between v1 and v2, so every difference is the lake
+tile. Soil moisture is the one term that moves the wrong way, and its bias changes sign between
+groups (lake cells +0.79 → +1.23 kg/m², other land −0.60) — the deep-layer divergence noted in the
+restart check below is the open question.
 
 Restart check (eclandpy state at 1998-01-01 after ten chained years vs the Fortran run's own
 `restart_in.nc`): identical at 1988 t=0; soil temperature within 0.1 K and soil moisture within
@@ -84,8 +111,15 @@ deep layer (1.9 m) carries a regionally coherent divergence — eclandpy drier o
 plateau, wetter on the coasts, 35 of 235 cells by >100 kg/m² — that domain means hide.
 
 Discharge at the six GRDC gauges (25 station-years, Guadalope excluded as a regulated river):
-median KGE −0.135 (eclandpy chain) vs −0.155 (Fortran chain), median r 0.45 vs 0.34, eclandpy
-ahead at 15 of 25 station-years, and drier (PBIAS −42 % vs −36 %, consistent with the runoff gap).
+median KGE −0.135 (v1) and −0.134 (v2) against −0.155 for the Fortran chain, median r 0.451 for
+both versions vs 0.342, eclandpy ahead at 15 (v1) / 14 (v2) of 25 station-years, and drier
+(PBIAS −42 % vs −36 %). The lake tile moves routed discharge by ~1 mm/yr of runoff, so the gauge
+skill is unchanged between v1 and v2.
+
+Dashboards: [/pad/liaise/eclandpy/v1/](https://sites.ecmwf.int/pad/liaise/eclandpy/v1/) (as
+published 15 September, against the stale control) and
+[/pad/liaise/eclandpy/v2/](https://sites.ecmwf.int/pad/liaise/eclandpy/v2/) (this run, against the
+corrected control); the landing page `/pad/liaise/eclandpy/` still serves the original v1 page.
 
 Performance on the 368-column grid, per 30-min step (17,520 steps/year): Fortran 8.8 ms
 (2.56 min/year, 4 OpenMP threads); eclandpy **24 ms on one CPU core** (`gt:cpu_kfirst`,
@@ -114,11 +148,7 @@ no evaporation sink. `LROSPLIT` — surface and sub-surface runoff are passed se
 Python chain combines them, equivalent while `LGDWDLY` is off. `namelist/input_cmf` has
 `LWEVAP=false`, `LGDWDLY=false`.
 
-Lake tile (2026-09-19): ecland-porting `cy50r1` now assigns the FLake tile `PFRTI(:,9)` in
-`surfbc` (N. Wedi's PR #1, merged as `c8385de`, plus PR #2's KSTEP==0 flux estimate and the
-`surfbc_class` twin fix `93728d5`). The 37-year run above predates it: 231 of the 368 LIAISE
-cells carry a lake fraction up to 0.04 that was then modelled as vegetation/bare soil. A 10-day
-1988 check on the merged code changes only those cells (mean |ΔAvgSurfT| 0.02 K, max 2.3 K;
-non-lake cells identical to round-off) and moves the domain RMSE against the Fortran control
-marginally down (AvgSurfT 5.977 → 5.963 K over the 10 days); PLUMBER2 sites have no lake cover
-and are bit-identical.
+Lake tile: ecland-porting `cy50r1` assigns the FLake tile `PFRTI(:,9)` in `surfbc` since
+2026-09-19 (N. Wedi's PR #1, merged as `c8385de`, plus PR #2's KSTEP==0 flux estimate and the
+`surfbc_class` twin fix `93728d5`). The **v1** chain predates it; **v2** is the 37-year rerun with
+it, quantified in Results above. PLUMBER2 sites have no lake cover and are bit-identical.

@@ -284,6 +284,30 @@ The six one-year 15 arcmin roots `/perm/pad/liaise_cmf_1988_2024_dam{,_livnorm,
 _nolapena,_test_noflix_noybY,_test_noybY,_06min_crashed_unpatched}` are the
 pre-fix, mis-sited crash diagnostics -- superseded, keep or delete at will.
 
+## Dams vs naturalised at 15 arcmin, 1988-2014 (2026-09-21)
+
+Job 39210410 (35 dams, `data_dam_15min_fixed`) scored against the 15 arcmin
+naturalised chain `/perm/pad/liaise_cmf_1988_2024` on identical keys
+(`skill_15min_{dam,nat}_1988_2014.json`; namelists differ only in the
+`LDAMOUT` block, executables only by the guard build). At 0.25 deg a gauge
+usually shares its cell with the dam, so "regulated" = cell is a dam cell or
+downstream of one (25 gauges, 17 on a dam cell); the 565 natural
+station-years are bit-identical between the runs (max difference 0.00 m3/s
+-- the module is strictly local).
+
+| 15 arcmin | n | dam beats natural (KGE) | median KGE nat -> dam | median PBIAS nat -> dam |
+|---|---|---|---|---|
+| regulated | 465 | 26 % | 0.031 -> -0.028 | -38.6 -> -56.1 % |
+| natural | 601 | -- | -0.044 -> -0.044 | unchanged |
+
+Compared with 6 arcmin (regulated: 0.244 -> 0.208, PBIAS -34 -> -39 %), the
+defaults hurt **much more** at 15 arcmin: -0.06 KGE and -17 PBIAS points.
+Consistent with the 1988 retest table: at 15 arcmin the coarse cells deliver
+inflow well below each reservoir's own `Qn` (median inflow/Qn 1.13 vs 1.66
+in 1988), so reservoirs spend more time empty and starve downstream gauges.
+Another reason the calibration work should stay at 6 arcmin (or 3, pending
+job 39210409).
+
 ## Dams vs naturalised over the full gauged record, 1988-2014 at 6 arcmin (2026-09-21)
 
 Definitive version of the interim table below (same code path, dam run job

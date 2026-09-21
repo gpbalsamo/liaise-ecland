@@ -239,6 +239,41 @@ configuration=v5.0, forcing=ecmf-era5, timespan=24h, expver=1, step=24`, but
 tonight -- confirm the keys (database/expver) with the script's author before
 scheduling the ~1 GB Ebro-box retrieval.
 
+## Dams vs naturalised over the full gauged record, 1988-2014 at 6 arcmin (2026-09-21)
+
+Definitive version of the interim table below (same code path, dam run job
+39102478 through 2014 vs the naturalised 6 arcmin control, identical 1104
+(station, year) keys, 53 gauges, 19 with a `data_dam_06min` reservoir
+upstream; CASPE and TUDELA excluded as usual).
+`/perm/pad/liaise_discharge_compare/skill_06min_{dam,nat}_1988_2014.json`,
+summary `dam_vs_nat_06min_1988_2014_summary.json`.
+
+| | n | dam beats natural (KGE) | median KGE nat -> dam | median r | median PBIAS nat -> dam |
+|---|---|---|---|---|---|
+| all | 1066 | 23 % | 0.120 -> 0.101 | 0.528 -> 0.532 | -40.6 -> -41.4 % |
+| regulated | 338 | 25 % | 0.244 -> 0.208 | 0.643 -> 0.639 | -34.1 -> -38.5 % |
+| natural | 728 | 22 % | 0.027 -> 0.027 | unchanged | unchanged |
+
+**With default, uncalibrated parameters the reservoir module makes discharge
+skill slightly worse, not better**: -0.04 KGE and -4 PBIAS points at the
+regulated gauges, zero effect elsewhere (the module is correctly local).
+Timing is untouched (r unchanged); the loss is volume and variability -- the
+constant-`Qn` rule holds water back at the wrong times. One gauge improves
+a lot: **Cinca at Fraga 0.04 -> 0.26** (Mediano/ElGrado/Barasona irrigation
+set, 1053 hm3; release smoothing helps there). Everything on the Aragon-Arga
+axis loses (Castejon 0.54 -> 0.40, Estella 0.32 -> 0.17, Huarte 0.14 -> -0.14
+with PBIAS -51 -> -73 %), as do the Ebro main stem (Gelsa 0.54 -> 0.44) and
+the Ega (Arquijas 0.48 -> 0.35). Yesa is the one reservoir whose own gauge
+gets better (0.52 -> 0.57, PBIAS 17 -> 13 %).
+
+Reading for the calibration work (feasibility study section 4): the defaults
+(`Qn` = naturalised mean, `Qf` = 0.3 Q100, flood volume 37 %, no GRSAD
+normal volume) are not a usable prior for Ebro irrigation/hydropower
+reservoirs -- a seasonal `Qn` (or the GRSAD-derived normal volume) is the
+first thing to fit, and the Aragon-Arga gauges plus Fraga/Castejon/Gelsa are
+the objective. The GloFAS v4 comparison (next section) shows what a
+calibrated model with reservoirs achieves at exactly these gauges.
+
 ## Interim: dams vs naturalised, first 8 years at 6 arcmin (2026-09-20, job 39102478 still running)
 
 Scored with `skill_benchmark_resolution.py --resolution 06min` on the identical

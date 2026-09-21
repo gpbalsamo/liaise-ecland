@@ -276,7 +276,7 @@ start, 37 years restart-chained.
 
 | resolution | dams sited | statics | run root | job | status |
 |---|---|---|---|---|---|
-| 15 arcmin | 35 (dedup drops 10) | `cama_flood/data_dam_15min_fixed` | `/perm/pad/liaise_cmf_1988_2024_dam_15min` | 39210410 | running (~2 h) |
+| 15 arcmin | 35 (dedup drops 10) | `cama_flood/data_dam_15min_fixed` | `/perm/pad/liaise_cmf_1988_2024_dam_15min` | 39210410 | **done** 37/37 (05:30:01Z -> 07:29:33Z UTC), scored 1988-2014 (section below) |
 | 6 arcmin | 44 | `cama_flood/data_dam_06min` | `/perm/pad/liaise_cmf_1988_2024_dam_06min` | 39102478 | **done**, scored (sections below) |
 | 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 | running (~12 h; naturalised took 10 h 08) |
 

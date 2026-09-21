@@ -2000,14 +2000,16 @@ does not change what a restart contains.
   gives finite, plausible-looking numbers, i.e. the bug is silent there.
   Same class as `8fc1d41`/`fa34baa` but in a different module, which those
   fixes did not touch. Real LIAISE cannot trigger it (no `tvh=0`), but
-  PLUMBER2-style bare/low-only sites can. **Not fixed here** (private
-  worktree, no ecland change made); the fix is to clamp the table index to 1
-  and zero that type's cover when `KTV == 0`, not to widen the `KTVL > 0`
-  skip.
+  PLUMBER2-style bare/low-only sites can. **Fixed on a local ecland branch,
+  see "The `FUEL` fix" below.** At the 20 `cvh=tvh=0` cells the unfixed
+  release build's numbers turned out to be correct anyway (the garbage
+  element is multiplied by a zero cover), so this was undefined behaviour
+  that happened to be harmless there, not wrong output.
 - **Related, functional:** the same `KTVL > 0` guard means a point with
   `KTVL == 0` is skipped entirely, so its fuel loads never leave the
   cold-start default (`LLFL = 10` kg m-2 all year, seen at the 20
   `static_nolow` and 10 bare cells) even where high vegetation exists.
+  Also fixed (below).
 - **Fuel-load magnitude is set by the initial condition, not by the physics.**
   The four loads are one pool of 10 kg m-2 (cold-start default) partitioned
   each step and changed only by `PNEE*dt/2`; domain-mean total 10.00 ->
@@ -2023,14 +2025,48 @@ does not change what a restart contains.
 - **Bounds-checked runs** (`-check all`, ~11 min/year): the real domain
   (`fire_dbg_real_1988`) and the `static_nolow` variant both finish with
   status 0, so LFMC/DFMC/FUEL, the `o_fire` writer and the restart writer are
-  clean on real data and on `KTVL == 0`; only the `KTVH == 0` case fails.
+  clean on real data and on `KTVL == 0`; before the fix only the
+  `KTVH == 0` case failed.
+
+**The `FUEL` fix.** Branch `fuel-guard-ktv0` in the private worktree
+`/perm/pad/ecland-fire` (off `develop` `3864a04`, **local commits only, not
+pushed, not upstreamed**), two commits so the second can be dropped alone:
+- `897b0c5` -- an absent vegetation type (`KTV == 0`) gets zero effective
+  cover (`ZCVL`/`ZCVH`), its table index is clamped to 1, and the point is
+  processed when the *summed effective* cover exceeds 0.001 (was: skipped
+  unless `KTVL > 0`). Every weight and cap multiplies by cover, so the absent
+  type contributes exactly zero; a single-type point gets the whole pool on
+  its one type. Deliberately not "widen the guard to `KTVL > 0 .AND.
+  KTVH > 0`", which would freeze the loads at every single-type point.
+- `c6d9213` -- points with no vegetation at all (summed effective cover
+  <= 0.001) get all four loads set to 0, instead of keeping the 10 kg m-2
+  cold-start default for the whole run (matches `LFMC`, which returns 0 for
+  an absent type). This is the only part that changes output, and only at
+  fuel-free points.
+
+Pinned separately from the pre-fix baseline (kept for comparison):
+`run/bin_fire_fuelfix/` (release) and `run/bin_fire_debug_fuelfix/`
+(`-check all`); `ldd` checked. Verified with `analyse_fuelfix.py`, 1988:
+- *Real LIAISE domain: a no-op.* All 10 `o_fire.nc` variables are
+  bit-identical to the pre-fix run in both the release and the bounds-checked
+  build, and `o_wat`/`o_eva` are too (every real point has both types).
+- *Bounds-checked, all three variants, status 0*: `static_bare` (which
+  aborted at step 1 before), `static_nolow`, and the real domain.
+- *`LFMC_L/H` and all four `DFMC_*` identical at every cell* of `static_bare`
+  (the fix does not touch them), and the four loads identical at the 185
+  unmodified cells.
+- *Bare cells (10):* total fuel 10 at record 0 (the initial state) and 0 from
+  the first step, was 10 all year. *No-low-veg cells (20):* now evolve
+  (`LWFL` mean 7.3, `DFFL` 1.7, `DWFL` 0.73, `LLFL` 0.29; total ~10.1), was
+  frozen at `LLFL = 10`. *No-high-veg cells (20):* identical to before.
 
 **Not done:** no multi-year or 37-year fire run; no timing comparison with
-and without `LEFIRE`; no single-precision build; no upstream report or fix
-for the `FUEL` bug. Scripts and the comparison log are kept outside the repo
-in `/perm/pad/liaise_fire_test/` (`analyse_fire.py`,
-`check_chain_and_identity.py`, `submit_run.sh`, `check_chain_and_identity.log`);
-the run outputs are in `$SCRATCH/liaise_fire_test/` and are disposable.
+and without `LEFIRE`; no single-precision build; the `FUEL` branch has not
+been pushed or reported upstream to ecland. Scripts and the comparison log
+are kept outside the repo in `/perm/pad/liaise_fire_test/` (`analyse_fire.py`,
+`check_chain_and_identity.py`, `analyse_fuelfix.py`, `submit_run.sh`,
+`check_chain_and_identity.log`); the run outputs are in
+`$SCRATCH/liaise_fire_test/` and are disposable.
 
 ## Scientific context / literature
 

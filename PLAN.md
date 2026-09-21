@@ -267,6 +267,23 @@ configuration=v5.0, forcing=ecmf-era5, timespan=24h, expver=1, step=24`, but
 tonight -- confirm the keys (database/expver) with the script's author before
 scheduling the ~1 GB Ebro-box retrieval.
 
+## Dam experiments, all resolutions (status 2026-09-21)
+
+Same pipeline at every resolution: corrected 1-based siting, guard binary
+`run/bin_damfix`, `namelist/input_cmf_dam`, `dam_param.csv` from the
+resolution's own `ebro_dam_q100_<res>.csv` (default parameters), 1988 cold
+start, 37 years restart-chained.
+
+| resolution | dams sited | statics | run root | job | status |
+|---|---|---|---|---|---|
+| 15 arcmin | 35 (dedup drops 10) | `cama_flood/data_dam_15min_fixed` | `/perm/pad/liaise_cmf_1988_2024_dam_15min` | 39210410 | running (~2 h) |
+| 6 arcmin | 44 | `cama_flood/data_dam_06min` | `/perm/pad/liaise_cmf_1988_2024_dam_06min` | 39102478 | **done**, scored (sections below) |
+| 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 | running (~12 h; naturalised took 10 h 08) |
+
+The six one-year 15 arcmin roots `/perm/pad/liaise_cmf_1988_2024_dam{,_livnorm,
+_nolapena,_test_noflix_noybY,_test_noybY,_06min_crashed_unpatched}` are the
+pre-fix, mis-sited crash diagnostics -- superseded, keep or delete at will.
+
 ## Dams vs naturalised over the full gauged record, 1988-2014 at 6 arcmin (2026-09-21)
 
 Definitive version of the interim table below (same code path, dam run job

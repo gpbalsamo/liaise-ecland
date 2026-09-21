@@ -1925,6 +1925,113 @@ initialising it on snow-free points, and `run/check_water_budget.py` returns
 absurd totals on this domain's output (it does not mask sea/missing points
 despite its docstring) -- neither affects the runs documented here.
 
+### LEFIRE fire-danger switch tested on LIAISE (2026-09-21)
+
+`LEFIRE` (ecLand `develop`, ported from "sparky" in `3b51785`, `o_fire.nc`
+output in `f2f0f92`) was tested end to end on this domain: 1988 smoke run, a
+1988-1989 chained pair, a control-vs-fire bit-identity comparison, and
+bounds-checked (`-check all`) runs. **Result: it works on the real LIAISE
+data and does not touch the water/energy physics, with one real out-of-bounds
+bug found for points that have only one vegetation type (below).**
+
+**Build / pins.** Fresh worktree `/perm/pad/ecland-fire` (detached at
+`develop` HEAD `3864a04`), ecbundle recipe `/perm/pad/ecland-fire-build`
+(copied from `ecland-damfix-build`, `BUILD_TYPE=BIT`, 182 s under `sbatch`,
+8 cpus), pinned as `run/bin_fire/{bin,lib64}` (`ldd` checked: the
+`libecland_surf_dp.so` resolves inside `run/bin_fire/lib64`). A second bundle
+`/perm/pad/ecland-fire-build-debug` (`Debug`, `-O0 -g -traceback -check all`)
+is pinned as `run/bin_fire_debug/{bin,lib64}`. `develop` HEAD carries its own
+LFMC `KTV==0` guards (`fa34baa`, `21c9ecf`); `8fc1d41` (the fix named in the
+task) is on a different branch and is **not** an ancestor of `develop`.
+
+**Namelist.** `LEFIRE` is in `&NAMPARSOIL`, `LWRFIRE` in `&NAM1S`.
+`namelist/create_liaise_namelist.sh` did not expose either; both are now
+env-var switches defaulting to `.FALSE.` (`LEFIRE=.TRUE. LWRFIRE=.TRUE.
+OUTDIR=... FORCING_TEMPLATE=... namelist/create_liaise_namelist.sh`; **set
+`OUTDIR`**, its default is a stale `/perm/pad/liaise/namelist`). Its output
+differs from the committed `namelist/input` only by default-off lines
+(`LWRFIRE`, `LEFIRE`, and the four depth-trilogy switches the committed file
+never had), so the control runs below use the committed `namelist/input`
+verbatim and the fire runs use the generator output. The restart always
+carries the nine fire fields (`wrtres.F90` writes them, and `rdsupr.F90`
+falls back to cold-start defaults if a file lacks them), so `LEFIRE` on/off
+does not change what a restart contains.
+
+**Runs** (all `$SCRATCH/liaise_fire_test`, `run_liaise_ecland.sh` via a small
+`sbatch` wrapper, ~2 min/year in the release build):
+1. *1988 smoke*: status 0, `o_fire.nc` with 8785 records.
+2. *Physical sanity* (`analyse_fire.py`): no NaN/fill values in any of the 10
+   fields at the 235 land points; dead-fuel moisture stays inside its own
+   clamps (`DFMC_1/10` in [1e-7, 0.3], `DFMC_100/1000` in [1e-7, 0.2]); clear
+   seasonal cycle (`DFMC_1` domain mean 0.28 in January, 0.14 in August;
+   `DFMC_1000` 0.195 -> 0.139) and rain response (in 100 % of the 52,618
+   cell-hours with > 1 mm/h the 1 h and 10 h moisture either rises or is
+   already at its cap; wet-day mean 0.294 vs 0.185 on rainless days);
+   `LFMC_L/H` 113-140 % monthly domain mean, 0 where the vegetation type is
+   absent.
+3. *1988-1989 chain*: the fire prognostics carry across the restart --
+   1989 first-hour `DFMC_*`, `LLFL`, `LWFL`, `DFFL`, `DWFL` equal the 1988
+   restart to <= 2.4e-7 (float32), against cold-start values that differ by
+   up to 10 kg m-2 (`LLFL` 0.094 carried vs 10 cold).
+4. *Bit-identity*: `ctrl_chain` (committed namelist) vs `fire_chain` (LEFIRE +
+   LWRFIRE), 1988 and 1989, and vs the standalone `fire_1988`: every variable
+   of `o_cld/co2/d2m/efl/eva/ext/fix/gg/ggd/sus/vty/wat` is bit-identical
+   (`np.array_equal`, 12 files x 3 pairs). `o_gg`/`o_eva`/`o_wat` are covered.
+   The comparison job is `check_chain_and_identity.py` (a naive version that
+   re-read each variable three times on the login node ran > 15 min without
+   finishing; the version kept in `/perm/pad/liaise_fire_test/` reads each
+   variable once and runs under `sbatch`, 22 min).
+
+**Findings worth knowing.**
+- **The premise "32 cells with cvl=0 / 214 with cvh=0" does not hold for this
+  `init_clim/work/surfclim`.** None of the 235 active land points has
+  `cvl=0` or `cvh=0` (minimum `cvl` 0.247, `cvh` 0.001; `tvl` in {1,2,7,10,17},
+  `tvh` in {3,4,5,17}); the only zeros are the 133 sea points. So the
+  `KTV==0` paths are never reached by the real domain. To exercise them
+  anyway, scratch-only variants of `surfclim` were built
+  (`static_bare/`: 20 cells `cvl=tvl=0`, 20 cells `cvh=tvh=0`, 10 with both;
+  `static_nolow/`: 20 cells `cvl=tvl=0` only).
+- **Real bug, `src/surf/module/fuel_mod.F90` (develop `3864a04`).** `FUEL`
+  guards only `KTVL(JL) > 0` and then indexes `ZFD/ZLMA/ZLAC/ZMSC/ZDFF(ITYH)`,
+  so a point with low vegetation and `KTVH == 0` reads element 0 of those
+  tables. The bounds-checked binary aborts at step 1 on `static_bare`
+  (`forrtl: severe (408): Subscript #1 of the array ZFD has value 0`,
+  traceback in `fuel_mod_mp_fuel_`); the release binary does not crash and
+  gives finite, plausible-looking numbers, i.e. the bug is silent there.
+  Same class as `8fc1d41`/`fa34baa` but in a different module, which those
+  fixes did not touch. Real LIAISE cannot trigger it (no `tvh=0`), but
+  PLUMBER2-style bare/low-only sites can. **Not fixed here** (private
+  worktree, no ecland change made); the fix is to clamp the table index to 1
+  and zero that type's cover when `KTV == 0`, not to widen the `KTVL > 0`
+  skip.
+- **Related, functional:** the same `KTVL > 0` guard means a point with
+  `KTVL == 0` is skipped entirely, so its fuel loads never leave the
+  cold-start default (`LLFL = 10` kg m-2 all year, seen at the 20
+  `static_nolow` and 10 bare cells) even where high vegetation exists.
+- **Fuel-load magnitude is set by the initial condition, not by the physics.**
+  The four loads are one pool of 10 kg m-2 (cold-start default) partitioned
+  each step and changed only by `PNEE*dt/2`; domain-mean total 10.00 ->
+  9.79 kg m-2 over 1988 (range 8.0-11.5), with `LLFL` collapsing to its
+  LAI-capped value (mean 0.17) on the first step. So the restart chain
+  matters (verified above) but there is no equilibrium to spin up to;
+  treat `LWFL/DFFL/DWFL` as relative variability, not absolute load.
+- **Dead-fuel moisture sits at its cap ~45 % of the time** (`DFMC_1` 46.6 %,
+  `DFMC_1000` 44.9 %; at the 1e-7 floor 5.4 % / 0.8 %) in this climate: one
+  wetting hour refills the pool and drying is slow, so the 1 h and 1000 h
+  classes are less distinct than their nominal time lags suggest. A property
+  of the ported scheme, not of this driver.
+- **Bounds-checked runs** (`-check all`, ~11 min/year): the real domain
+  (`fire_dbg_real_1988`) and the `static_nolow` variant both finish with
+  status 0, so LFMC/DFMC/FUEL, the `o_fire` writer and the restart writer are
+  clean on real data and on `KTVL == 0`; only the `KTVH == 0` case fails.
+
+**Not done:** no multi-year or 37-year fire run; no timing comparison with
+and without `LEFIRE`; no single-precision build; no upstream report or fix
+for the `FUEL` bug. Scripts and the comparison log are kept outside the repo
+in `/perm/pad/liaise_fire_test/` (`analyse_fire.py`,
+`check_chain_and_identity.py`, `submit_run.sh`, `check_chain_and_identity.log`);
+the run outputs are in `$SCRATCH/liaise_fire_test/` and are disposable.
+
 ## Scientific context / literature
 
 `docs/literature.md` — papers relevant to this project, each with the specific

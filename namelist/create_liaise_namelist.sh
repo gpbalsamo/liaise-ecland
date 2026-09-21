@@ -122,6 +122,12 @@ LEBEDROCKLIM=${LEBEDROCKLIM:-.FALSE.}
 LEGWRECHARGE=${LEGWRECHARGE:-.FALSE.}
 RWTDRECHARGE=${RWTDRECHARGE:-1.0}
 
+# LEFIRE fire-danger reservoirs (develop branch; NAMPARSOIL) and their
+# o_fire.nc output (NAM1S). Default off: the control namelist never enables
+# them, so namelist/input is unchanged unless these are exported.
+LEFIRE=${LEFIRE:-.FALSE.}
+LWRFIRE=${LWRFIRE:-.FALSE.}
+
 CFORCV=${CFORCV:-Wind.nc}
 CFORCU=${CFORCU:-Wind.nc}
 CFORCT=${CFORCT:-Tair.nc}
@@ -198,6 +204,7 @@ cat > "$OUTDIR/input" <<NAMELIST
   LWREXT=$LPROD            ! logical, write o_ext - extra output with forcing
   LWRTIL=.FALSE.           ! logical, write o_til - tiles 2D (tile) state
   LWRLKE=.FALSE.           ! logical, write o_lke - lake variables
+  LWRFIRE=${LWRFIRE}       ! logical, write o_fire - LEFIRE fuel moisture/load (needs LEFIRE)
   LSEMISS=.FALSE.          ! LOGICAL : EMISSIVITY SET TO CONSTANT VALUE REMISS
   LDBGS1=$LDBGS1           ! LOGICAL : PRINT DEBUG INFO, EG FORCING DATA (DEFAULT=FALSE)
   IDBGS1=$IDBGS1                 ! Debug level : output printing
@@ -283,6 +290,7 @@ cat > "$OUTDIR/input" <<NAMELIST
   LEBEDROCKLIM=${LEBEDROCKLIM}
   LEGWRECHARGE=${LEGWRECHARGE}
   RWTDRECHARGE=${RWTDRECHARGE}
+  LEFIRE=${LEFIRE}
   /
   &NAMPARVEG
   /

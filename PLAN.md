@@ -204,6 +204,34 @@ There is **no GloFAS discharge file under `/perm/pad`**. What exists:
   1988-2024 at 0.05 deg is ~13.5k daily fields, ~1 GB: retrieve with `mars`,
   not the CDS.
 
+## Three-way on identical days, 2018-2022: GloFAS v4 vs naturalised vs dammed ecLand-CaMa (2026-09-21)
+
+Same 27 Ebro stations, same 1826 days and observation values as the section
+below, with the dam run (job 39102478, default parameters) added
+(`/perm/pad/liaise_discharge_compare/glofas_v4_vs_nat_vs_dam_2018_2022.json`).
+"Regulated" here = station cell downstream of a `data_dam_06min` reservoir on
+the 6 arcmin network (21 of 27).
+
+| median KGE | GloFAS v4 | ecLand-CaMa naturalised | ecLand-CaMa + dams (defaults) |
+|---|---|---|---|
+| all 27 | 0.214 | 0.071 | 0.096 |
+| regulated 21 | **0.450** | 0.105 | 0.123 |
+| natural 6 | -1.96 | -0.185 | -0.185 (identical, as it must be) |
+| median PBIAS, regulated | +12 % | -25 % | -28 % |
+
+Head-to-head at the 21 regulated stations: dams beat naturalised at 11/21,
+GloFAS beats the dam run at 14/21. The dam module helps where a reservoir
+smooths a flashy tributary -- Segre at Seros -0.50 -> +0.29, Martin at Hijar
+-0.79 -> +0.10, Cinca at Fraga 0.11 -> 0.27, Gallego 0.21 -> 0.39 -- and
+hurts where the constant-`Qn` rule holds water on the main stem and the
+Aragon-Arga axis -- Tortosa 0.64 -> 0.39, Asco 0.57 -> 0.37, Castejon 0.43
+-> 0.31, Zaragoza 0.45 -> 0.34, Irati 0.36 -> 0.18. GloFAS v4 (calibrated
+LISFLOOD with reservoirs) reaches 0.63-0.76 at Castejon/Mendavia/Zaragoza/
+Gallego/Logrono: that is the size of the calibration prize at exactly the
+gauges the dam module currently degrades. Where GloFAS is bad it is bad by
+volume (Jalon +387 %/+144 %, Arba en Ejea +707 %, Alhama +411 %) and both
+ecLand-CaMa runs beat it there.
+
 ## GloFAS yardstick, first cut: GloFAS v4 vs ecLand-CaMa naturalised, 2018-2022 (2026-09-20)
 
 `ifs-riverbench/Workflow/dashboard_data/glofas_v4/20180101_20221231_15arcmin/`

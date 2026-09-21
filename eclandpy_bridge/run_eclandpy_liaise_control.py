@@ -136,7 +136,7 @@ def restore_state(driver, snap: dict) -> None:
 
 def run_one_year(
     year: int, restart_in: Path | None, restart_out: Path, out_dir: Path,
-    max_steps: int | None = None, with_fluxes: bool = False, namelist: str = "cy48r1",
+    max_steps: int | None = None, with_fluxes: bool = False, namelist: str = "cy50r1",
 ) -> None:
     # ecland_porting imports MUST come after adapter.build() -- _io_shim.install() (which build()
     # calls first) must run before ecland_porting.setup is ever imported anywhere in the process,
@@ -215,9 +215,9 @@ def main() -> None:
     p.add_argument("--year-end", type=int, required=True)
     p.add_argument("--out-root", type=Path, default=BRIDGE_ROOT / "output")
     p.add_argument("--restart-root", type=Path, default=BRIDGE_ROOT / "restart")
-    p.add_argument("--namelist", default="cy48r1",
-                   help='ecland_porting config: "cy48r1" (9 tiles) or "cy48r1_urban" (10 tiles, '
-                        'LEURBAN=T as the Fortran LIAISE control runs it)')
+    p.add_argument("--namelist", default="cy50r1",
+                   help='ecland_porting config: "cy50r1" (default, 10 tiles, LEURBAN=T as every '
+                        'Fortran LIAISE control run uses it) or "cy48r1" (9 tiles, urban off)')
     p.add_argument("--with-fluxes", action="store_true",
                    help="also write o_efl.nc (surface energy balance) and o_sus.nc (albedo/LAI/z0)")
     p.add_argument("--smoke-steps", type=int, default=None,

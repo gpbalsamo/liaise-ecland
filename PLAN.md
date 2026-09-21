@@ -278,11 +278,38 @@ start, 37 years restart-chained.
 |---|---|---|---|---|---|
 | 15 arcmin | 35 (dedup drops 10) | `cama_flood/data_dam_15min_fixed` | `/perm/pad/liaise_cmf_1988_2024_dam_15min` | 39210410 | **done** 37/37 (05:30:01Z -> 07:29:33Z UTC), scored 1988-2014 (section below) |
 | 6 arcmin | 44 | `cama_flood/data_dam_06min` | `/perm/pad/liaise_cmf_1988_2024_dam_06min` | 39102478 | **done**, scored (sections below) |
-| 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 | running (~12 h; naturalised took 10 h 08) |
+| 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 | 1988-2014 done and scored (section below); ~37 min/yr, hits the 20 h limit ~2019, resume pending |
 
 The six one-year 15 arcmin roots `/perm/pad/liaise_cmf_1988_2024_dam{,_livnorm,
 _nolapena,_test_noflix_noybY,_test_noybY,_06min_crashed_unpatched}` are the
 pre-fix, mis-sited crash diagnostics -- superseded, keep or delete at will.
+
+## Dams vs naturalised at all three resolutions, 1988-2014 (2026-09-22)
+
+Same pipeline and default parameters everywhere; each dam run scored against
+its own naturalised control on identical (station, year) keys with
+`skill_benchmark_resolution.py`; "regulated" = gauge cell is a dam cell or
+downstream of one on that resolution's network; CASPE/TUDELA excluded.
+`/perm/pad/liaise_discharge_compare/dam_vs_nat_three_resolutions_1988_2014.json`.
+
+| resolution | dams sited | regulated station-years | dam beats natural (KGE) | median KGE nat -> dam | median PBIAS nat -> dam | natural gauges |
+|---|---|---|---|---|---|---|
+| 15 arcmin | 35 | 501 | 26 % | 0.055 -> -0.004 | -31 -> -54 % | unchanged |
+| 6 arcmin | 44 | 374 | 24 % | 0.260 -> 0.221 | -32 -> -35 % | unchanged |
+| 3 arcmin | 43 | 211 | 27 % | 0.263 -> 0.243 | -30 -> -32 % | unchanged |
+
+Reading: (a) the module is strictly local at every resolution (natural
+gauges bit-identical); (b) with the CaMa-Flood default rule the reservoirs
+cost skill at regulated gauges at every resolution, but the penalty shrinks
+sharply with resolution -- -0.06 KGE / -22 PBIAS points at 15 arcmin,
+-0.04 / -3 at 6, -0.02 / -2 at 3 -- because finer cells deliver each
+reservoir an inflow consistent with its own `Qn` (the 15 arcmin cells starve
+them); (c) the naturalised baseline itself improves 15 -> 6 (0.055 -> 0.260
+at regulated gauges) and barely 6 -> 3, as in the naturalised ladder. So for
+the calibration work 6 arcmin remains the right compromise; 3 arcmin buys
+~0.02 KGE for 5x the compute. Note the regulated station-year count falls
+with resolution because the finer networks put fewer gauge cells on or below
+a dam cell (at 15 arcmin many gauges share the dam's cell).
 
 ## Dams vs naturalised at 15 arcmin, 1988-2014 (2026-09-21)
 

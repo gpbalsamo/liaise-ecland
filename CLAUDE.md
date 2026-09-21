@@ -2000,8 +2000,8 @@ does not change what a restart contains.
   gives finite, plausible-looking numbers, i.e. the bug is silent there.
   Same class as `8fc1d41`/`fa34baa` but in a different module, which those
   fixes did not touch. Real LIAISE cannot trigger it (no `tvh=0`), but
-  PLUMBER2-style bare/low-only sites can. **Fixed on a local ecland branch,
-  see "The `FUEL` fix" below.** At the 20 `cvh=tvh=0` cells the unfixed
+  PLUMBER2-style bare/low-only sites can. **Fixed in ecland `develop`
+  (`897b0c5`, `c6d9213`), see "The `FUEL` fix" below.** At the 20 `cvh=tvh=0` cells the unfixed
   release build's numbers turned out to be correct anyway (the garbage
   element is multiplied by a zero cover), so this was undefined behaviour
   that happened to be harmless there, not wrong output.
@@ -2028,9 +2028,12 @@ does not change what a restart contains.
   clean on real data and on `KTVL == 0`; before the fix only the
   `KTVH == 0` case failed.
 
-**The `FUEL` fix.** Branch `fuel-guard-ktv0` in the private worktree
-`/perm/pad/ecland-fire` (off `develop` `3864a04`, **local commits only, not
-pushed, not upstreamed**), two commits so the second can be dropped alone:
+**The `FUEL` fix.** Developed on branch `fuel-guard-ktv0` in the private
+worktree `/perm/pad/ecland-fire` (off `develop` `3864a04`), then
+fast-forwarded into `develop` and **pushed to `origin/develop` on 2026-09-21**
+(`9a7ca37..c6d9213`; that push also published `3864a04`, the unpushed
+`o_til` single-precision fix that was already on local `develop`). Two
+commits, so the second can be reverted alone:
 - `897b0c5` -- an absent vegetation type (`KTV == 0`) gets zero effective
   cover (`ZCVL`/`ZCVH`), its table index is clamped to 1, and the point is
   processed when the *summed effective* cover exceeds 0.001 (was: skipped
@@ -2061,8 +2064,9 @@ Pinned separately from the pre-fix baseline (kept for comparison):
   frozen at `LLFL = 10`. *No-high-veg cells (20):* identical to before.
 
 **Not done:** no multi-year or 37-year fire run; no timing comparison with
-and without `LEFIRE`; no single-precision build; the `FUEL` branch has not
-been pushed or reported upstream to ecland. Scripts and the comparison log
+and without `LEFIRE`; no single-precision build; the shared
+`/perm/pad/ecland/build` has not been rebuilt, so its binary predates the
+fix (source now has it; the next rebuild there will include it). Scripts and the comparison log
 are kept outside the repo in `/perm/pad/liaise_fire_test/` (`analyse_fire.py`,
 `check_chain_and_identity.py`, `analyse_fuelfix.py`, `submit_run.sh`,
 `check_chain_and_identity.log`); the run outputs are in

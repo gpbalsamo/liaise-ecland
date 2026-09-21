@@ -1841,6 +1841,48 @@ dams on their own correctly-sized cell) and gauge skill, not for stability.
 the guard and the `WATBAL`-vs-`CALC` inflow inconsistency (ecland/CaMa-Flood);
 the index convention is ours.
 
+### First complete 37-year reservoir run and what it says (2026-09-21)
+
+Job `39102478`: glb_06min, 44 GRanD dams correctly sited, guard binary
+`run/bin_damfix`, `namelist/input_cmf_dam` + `cama_flood/data_dam_06min`,
+1988 cold start, restart-chained, **37/37 years status 0**, output at
+`/perm/pad/liaise_cmf_1988_2024_dam_06min/` (dam storage/inflow in
+`o_damsto.nc`/`o_daminf.nc` and `work/<year>/damtxt-<year>.txt`). The
+reservoir thread that opened on 2026-09-16 (seven crashes) is closed: the
+two causes were the negative-storage rounding undershoot (guarded) and the
+0-/1-based `DamIX/DamIY` mis-siting (fixed), see "Dam crash fixed" above.
+
+Skill, all on identical keys (details and per-gauge tables in PLAN.md):
+- 1988-2014, 53 gauges, 1066 station-years: with **default** parameters the
+  module slightly *degrades* skill at the 19 regulated gauges (median KGE
+  0.244 -> 0.208, PBIAS -34 -> -39 %), leaves natural gauges untouched, and
+  improves Cinca at Fraga a lot (0.04 -> 0.26) while hurting the Aragon-Arga
+  axis and the Ebro main stem.
+- 2018-2022 three-way on the riverbench GloFAS v4 days at 27 stations:
+  GloFAS v4 0.45 median KGE at regulated stations vs 0.12 (dams) / 0.11
+  (naturalised); the dam module wins on flashy tributaries (Seros, Hijar,
+  Fraga, Gallego) and loses on the main stem. That gap is the calibration
+  target (seasonal `Qn` / GRSAD normal volume), not a numerics problem.
+
+Over the 37 years (54 097 damtxt steps, max `|DamMiss|` 8.5e-6 km3): median
+inflow/`Qn` 0.97 (as it must be -- `Qn` is the 37-year naturalised mean), yet
+33 of 44 reservoirs empty at some point and six sit empty >=90 % of the time:
+SanSalvador and LaLoteta 100 %, Irabia 99 %, Eugui 98 %, Alsa 93 %,
+Mularroya 90 %. The first two are **off-stream, canal-fed** reservoirs
+(SanSalvador from the Aragon-Catalonia canal, LaLoteta from the Imperial
+canal) whose natural inflow cell is a gully, so a routing-derived `Qn` is
+meaningless for them -- exclude them (or hand-set inflow) in any calibration;
+Irabia/Eugui/Alsa are small Pyrenean/Cantabrian headwater dams whose `Qn`
+drains them between events. Domain-mean discharge and annual peaks are
+identical between the dam and naturalised runs to 0.1 m3/s (2003 peak
+16 163 m3/s in both): the module redistributes water in time, it does not
+create or lose it.
+
+The GloFAS series used come from `ifs-riverbench/Workflow/dashboard_data/
+glofas_v4/` (daily 2018-2022 at riverbench stations, with matched obs); no
+GloFAS discharge file exists on /perm/pad and the ERA5-forced GloFAS v5 MARS
+keys documented in `benchmark_cmf_vs_glofas5.py` returned nothing when tried.
+
 ### Pinned binaries: the executable's RPATH is `$ORIGIN/../lib64` (2026-09-16)
 
 `ecland-master-dp` finds its own `libecland_surf_dp.so`/`libfiat.so`/... via

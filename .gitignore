@@ -29,6 +29,11 @@ cama_flood/work_*/
 cama_flood/work_global/
 cama_flood/work_global_scratch/
 
+# fire/: regenerated daily-moisture caches, per-event figures and the raw
+# EFFIS pull -- fire/data/catalog.json (the small, filtered reference list)
+# is committed separately, below.
+fire/work/
+
 # ... except the validated, LIAISE-derived reference/observation files (Git
 # LFS), which would otherwise be caught by the *.nc rule above.
 !cama_flood/data/*.nc

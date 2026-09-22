@@ -33,6 +33,11 @@ landbench/
   Real point (flux-tower) observations in the LIAISE region, pulled from
   the sibling `ifs-landbench` repository's FLUXNET Shuttle run.
 
+fire/
+  Validate ecLand's LEFIRE fire-danger scheme against a curated dataset of
+  real, documented fires in the LIAISE domain (EFFIS + hand-researched
+  pre-2000 events).
+
 ## Data policy
 
 Do not commit large generated or downloaded data.
@@ -48,22 +53,27 @@ In particular, do not add:
 - `run/output/`
 - `run/restart/`
 - `cama_flood/work/`
+- `fire/work/`
 - logs
 - Python caches
 
 Respect `.gitignore`.
 
 The exception is `init_clim/data/soilinit`, `init_clim/data/surfclim`, the
-files under `cama_flood/data/`, and `landbench/data/`, which are validated
-reference/observation files tracked via Git LFS (see `.gitattributes`).
-These are small, LIAISE-specific *derived* or *filtered* outputs, distinct
-from the much larger upstream/global datasets they are built from (the
-ECMWF `climate.v021` archive, the global CaMa-Flood static network data --
-see `cama_flood/derive_cmf_weights.sh` -- and the `ifs-riverbench`/
-`ifs-landbench` observation archives), which must never be committed. They
-are also distinct from the gitignored `init_clim/work/`, `init_clim/output/`,
-and `cama_flood/work/` directories,
-which hold regenerated, run-specific copies.
+files under `cama_flood/data/`, `landbench/data/`, and
+`fire/data/catalog.json`, which are validated reference/observation files.
+The first four are NetCDF and tracked via Git LFS (see `.gitattributes`);
+`catalog.json` is small plain text (a list of ~150 real fires: date,
+location, burned area, source) and does not need LFS. These are small,
+LIAISE-specific *derived* or *filtered* outputs, distinct from the much
+larger upstream/global datasets they are built from (the ECMWF
+`climate.v021` archive, the global CaMa-Flood static network data -- see
+`cama_flood/derive_cmf_weights.sh` --, the `ifs-riverbench`/`ifs-landbench`
+observation archives, and the EFFIS burnt-area database -- see
+`fire/build_fire_catalog.py`), which must never be committed. They are also
+distinct from the gitignored `init_clim/work/`, `init_clim/output/`,
+`cama_flood/work/`, and `fire/work/` directories, which hold regenerated,
+run-specific copies.
 
 ## Forcing workflows
 
@@ -1528,6 +1538,64 @@ equivalent hard cross-check here:
 **Not yet done**: no ecLand point run at `ES-VDA` has actually been made or
 scored against its flux/soil observations -- this is the input bundle only.
 
+## Fire danger (LEFIRE): `fire/`
+
+Validates ecLand's `develop`-branch LEFIRE fire-danger scheme (fuel
+moisture/fuel load, `o_fire.nc`) against a curated dataset of real,
+documented fires in the LIAISE domain -- the fire-danger counterpart of
+`cama_flood/`'s GRDC gauges and `landbench/`'s flux towers. For the full
+validation narrative (the smoke/chain/bit-identity tests, and the
+`FUEL_MOD` out-of-bounds bug found and fixed) see "LEFIRE fire-danger
+switch tested on LIAISE" and "The `FUEL` fix" under "ecLand execution"
+below; this section is the evergreen, reproducible entry point.
+
+**Run LEFIRE**: `namelist/input_fire` (= `namelist/input` plus `LEFIRE=true`,
+`LWRFIRE=true`; a 3-line diff, same pattern as `namelist/input_cmf1way`) runs
+through the repo's own general driver exactly like the control:
+
+```bash
+RUN_ROOT=... NAMELIST=namelist/input_fire \
+  ECLAND_EXE=/path/to/ecland-master-dp run/run_liaise_ecland.sh   # or .slurm
+```
+
+Any `ecland` build from `develop` at or after commit `c6d9213` already has
+the `FUEL_MOD` fix (see below); no patching or special branch is needed.
+`RUN_ROOT/output/<year>/o_fire.nc` is the only new output file this adds.
+
+**Validate against real fires**: `fire/run_fire_event_pipeline.sh` (needs
+`RUN_ROOT` pointing at a finished LEFIRE run) fetches EFFIS burnt-area
+records, filters them to the domain, extracts a compact daily
+fuel-moisture cache from the run, draws one figure per fire (fuel dryness
+on the ignition day vs. the same calendar date in every other cached
+year), and checks that signal against a trend-controlled baseline (later
+years are systematically drier, so a fire's dryness rank is also compared
+against a typical recent year at the same cell/date, not just the full
+climatology). Five scripts, each independently runnable with `--help`:
+`fetch_effis_fires.py`, `build_fire_catalog.py`,
+`extract_fire_daily_moisture.py`, `plot_fire_event_maps.py`,
+`plot_fire_overview.py`, `check_fuel_dryness_baseline.py` (six, plus the
+shared `fire_dryness_common.py` module).
+
+`fire/data/catalog.json` (committed, plain JSON, not LFS -- small and
+text) is the reference fire list this was validated against: ~150 fires
+>= 1000 ha inside the domain, 1989-2024 -- 2000-2024 from EFFIS
+(Copernicus's public REST API, no auth needed), 1989-1998 from a small,
+explicitly-non-exhaustive set of hand-researched large fires (EFFIS has no
+data before 2000; each entry cites its own press/agency source). Re-running
+`fetch_effis_fires.py` queries EFFIS live and can pick up new or revised
+records since this snapshot -- diff before committing an update, don't
+assume it reproduces byte-for-byte forever.
+
+**Generality**: nothing fire-specific was added to the general driver
+(`run/run_liaise_ecland.sh`/`.slurm`) or to the namelist logic beyond the
+existing `LE*`/`N*` env-var mechanism (`LEFIRE`, `LWRFIRE`, same pattern as
+every other switch, default off) -- this repo's CaMa-Flood/inundation and
+irrigation (`LEIRRIGATION`) work is untouched by any of this. All
+fire-specific code and data live under `fire/`; `fire/build_fire_catalog.py`
+derives the domain box from `--surfclim`'s own grid rather than
+hard-coding LIAISE's numbers, so it (and the rest of the pipeline) is not
+tied to this one domain if the repo is pointed at a different one.
+
 ## ecLand execution
 
 `run/run_liaise_ecland.sh`
@@ -2089,10 +2157,13 @@ Pinned separately from the pre-fix baseline (kept for comparison):
 **Not done:** no timing comparison with and without `LEFIRE`; no
 single-precision build; the shared `/perm/pad/ecland/build` has not been
 rebuilt, so its binary predates the fix (source now has it; the next rebuild
-there will include it). Scripts and logs are kept outside the repo in
-`/perm/pad/liaise_fire_test/`; the single-year and chain outputs of the
-tests above were deleted (`$SCRATCH/liaise_fire_test/`, disposable) and only
-the regenerated runs below remain there.
+there will include it). The single-year and chain test outputs above were
+disposable scratch and have been deleted; the ad hoc scripts used for them
+(`analyse_fire.py`, `check_chain_and_identity.py`, `analyse_fuelfix.py`) stay
+outside the repo in `/perm/pad/liaise_fire_test/` as one-off checks. The
+*reusable* pipeline -- running LEFIRE (`namelist/input_fire`) and validating
+it against real fires -- is committed under `fire/`; see "Fire danger
+(LEFIRE)" above.
 
 #### 37-year LEFIRE run, 1988-2024 (2026-09-21)
 

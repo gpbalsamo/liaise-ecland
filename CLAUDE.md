@@ -1865,7 +1865,10 @@ Applied in an isolated worktree, **not** in the shared `/perm/pad/ecland`
 pinned binary's commit `55f3d24`, branch `damout-negative-storage-guard`
 (commit `9c7f277`), built by an isolated bundle
 `ecland-damfix-build/` that shares the pinned build's `fiat`/`field_api`/
-`eccodes` checkouts, pinned RPATH-correctly as `run/bin_damfix/{bin,lib64}`.
+`eccodes` checkouts, pinned RPATH-correctly as `run/bin_damfix/{bin,lib64}`. **The guard is in
+ecland `develop` since 2026-09-22** (cherry-picked as `cd8a37e` on top of
+`13d5d00` and pushed to `origin/develop`), so any `develop` build from that
+commit on has it; the worktree branch is only of historical interest now.
 Test on the exact crashing configuration (1988, glb_06min, 44 dams,
 `cama_flood/data_dam_06min`, `namelist/input_cmf_dam`): **status 0, full
 year, 1466 damtxt records**, `|DamMiss|` max 6e-6 km3 (rounding level, so the

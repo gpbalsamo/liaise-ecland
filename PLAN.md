@@ -284,6 +284,17 @@ The six one-year 15 arcmin roots `/perm/pad/liaise_cmf_1988_2024_dam{,_livnorm,
 _nolapena,_test_noflix_noybY,_test_noybY,_06min_crashed_unpatched}` are the
 pre-fix, mis-sited crash diagnostics -- superseded, keep or delete at will.
 
+## Gauges dashboard now carries the six experiments (2026-09-22)
+
+`sites.ecmwf.int/pad/liaise/gauges/` rebuilt with `build_resolution_dashboard.py`
+and six `--experiment` entries: "15 / 6 / 3 arcmin" (naturalised,
+`skill_resolution_<res>.json`, 1988-2020) and "15 / 6 / 3 arcmin + dams"
+(`skill_<res>_dam_1988_2014.json`, default parameters, 1988-2014). Same
+gauges, same metric selector; CASPE and TUDELA carry their caveats. The
+naturalised entries span more years than the dam ones, stated in the
+subtitle; for a like-for-like comparison use the identical-key tables in
+the sections below rather than the page's per-experiment medians.
+
 ## Dams vs naturalised at all three resolutions, 1988-2014 (2026-09-22)
 
 Same pipeline and default parameters everywhere; each dam run scored against

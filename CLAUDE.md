@@ -1883,6 +1883,29 @@ glofas_v4/` (daily 2018-2022 at riverbench stations, with matched obs); no
 GloFAS discharge file exists on /perm/pad and the ERA5-forced GloFAS v5 MARS
 keys documented in `benchmark_cmf_vs_glofas5.py` returned nothing when tried.
 
+### Reservoir runs at three resolutions, all complete (2026-09-22)
+
+With both fixes (storage guard, 1-based siting) the CaMa-Flood dam module
+now runs 37 years at every resolution: 15 arcmin (35 dams, job 39210410,
+~2 h), 6 arcmin (44 dams, job 39102478, 4.5 h) and 3 arcmin (43 dams, jobs
+39210409 + 39593008 -- the first hit the 20 h limit mid-2019, the second
+resumed 2019-2024 from the 2018 restart pair with `START_YEAR`/
+`INITIAL_RESTART(_CMF)`, chain verified continuous to 0.000 at the
+boundary; ~37 min/yr, only ~5 % slower than naturalised). Run roots
+`/perm/pad/liaise_cmf_1988_2024_dam_{15min,06min,03min}`.
+
+Scored 1988-2014 against each resolution's naturalised control on identical
+keys (PLAN.md, "Dams vs naturalised at all three resolutions"): natural
+gauges bit-identical everywhere (the module is strictly local); at
+regulated gauges the default rule costs -0.06 KGE / -22 PBIAS points at
+15 arcmin, -0.04 / -3 at 6, -0.02 / -2 at 3. The penalty shrinks with
+resolution because finer cells give each reservoir an inflow consistent
+with its own `Qn`; the naturalised baseline gains almost everything in the
+15->6 step. **6 arcmin is the resolution for the calibration campaign**
+(seasonal `Qn` / GRSAD normal volume; exclude the canal-fed SanSalvador and
+LaLoteta; objective = Aragon-Arga gauges + Fraga/Castejon/Gelsa; target =
+GloFAS v4's 0.45 median KGE at regulated stations on the 2018-2022 days).
+
 ### Pinned binaries: the executable's RPATH is `$ORIGIN/../lib64` (2026-09-16)
 
 `ecland-master-dp` finds its own `libecland_surf_dp.so`/`libfiat.so`/... via
@@ -2063,14 +2086,51 @@ Pinned separately from the pre-fix baseline (kept for comparison):
   (`LWFL` mean 7.3, `DFFL` 1.7, `DWFL` 0.73, `LLFL` 0.29; total ~10.1), was
   frozen at `LLFL = 10`. *No-high-veg cells (20):* identical to before.
 
-**Not done:** no multi-year or 37-year fire run; no timing comparison with
-and without `LEFIRE`; no single-precision build; the shared
-`/perm/pad/ecland/build` has not been rebuilt, so its binary predates the
-fix (source now has it; the next rebuild there will include it). Scripts and the comparison log
-are kept outside the repo in `/perm/pad/liaise_fire_test/` (`analyse_fire.py`,
-`check_chain_and_identity.py`, `analyse_fuelfix.py`, `submit_run.sh`,
-`check_chain_and_identity.log`); the run outputs are in
-`$SCRATCH/liaise_fire_test/` and are disposable.
+**Not done:** no timing comparison with and without `LEFIRE`; no
+single-precision build; the shared `/perm/pad/ecland/build` has not been
+rebuilt, so its binary predates the fix (source now has it; the next rebuild
+there will include it). Scripts and logs are kept outside the repo in
+`/perm/pad/liaise_fire_test/`; the single-year and chain outputs of the
+tests above were deleted (`$SCRATCH/liaise_fire_test/`, disposable) and only
+the regenerated runs below remain there.
+
+#### 37-year LEFIRE run, 1988-2024 (2026-09-21)
+
+`sbatch` job `39488968`: one restart chain, cold start 1988, fixed binary
+`run/bin_fire_fuelfix`, `LEFIRE`+`LWRFIRE` on, every other output stream off
+(`LPROD=.FALSE.`, so only `o_fire.nc`), `namelist/create_liaise_namelist.sh`
+env switches. **37/37 years status 0**, 1 h 28 min (~2.4 min/year). Output
+`/perm/pad/liaise_fire_test/run_1988_2024/output/<year>/o_fire.nc` (2.6 GB;
+`work/` holds a redundant second copy, 2.6 GB). Checked by
+`check_fire_37y.py` (results in `fire_37y_summary.json`): every year present
+with the right record count, no NaN/fill at the land points, dead-fuel
+moisture inside its clamps, no negative loads, and **all 36 year boundaries
+exactly continuous** (first record of year y+1 == last record of year y for
+all eight prognostics, max difference 0).
+
+**Usable over decades: the moisture fields.** Annual-mean `DFMC_1` stays in
+0.208-0.235 (`DFMC_1000` 0.181-0.194), `LFMC_L` 116.9-124.7 %, `LFMC_H`
+113.6-117.2 %, with the same summer-dry/autumn-wet cycle every year. The
+driest domain-mean day of each year's fast fuel (`DFMC_1`) is lower in the
+recent decade: mean 0.094 over 1988-2004 vs 0.066 over 2015-2024 (min 0.049
+in 2015), consistent with the warming already seen in the control run's T2m
+(11.9 -> 13.4 degC). By `LFMC_L` the driest years are 2022, 2017, 2023, 2019, 2005 and 2012 (all
+six in 2005 or later) and the wettest 1988, 1996, 1997.
+
+**Not usable in absolute terms over a long run: the fuel loads drift.**
+Domain-mean total fuel (`LLFL+LWFL+DFFL+DWFL`, end of year) rises 9.8 -> 18.0
+kg m-2 over 1988-2024 and the spread explodes: median stays ~10, but p10
+falls to ~0 and p90 rises 10.8 -> 44, with the largest cell going 11.5 ->
+77.8 kg m-2 (8 cells above 50 by 2024). 119 cells grew and 113 shrank by
+more than 0.5 kg m-2; the fastest-growing cell gains ~1.8 kg m-2 yr-1. This
+is the mechanism noted above made visible: the pool is initialised to a flat
+10 kg m-2 and changed only by `PNEE*dt/2` with a floor at zero, with no
+turnover (no litterfall, decomposition or fire consumption), so a persistent
+net CO2 sink accumulates without bound and a persistent source is emptied.
+Loads past roughly the first decade are therefore an integral of NEE bias,
+not a fuel inventory; use `DFMC_*`/`LFMC_*` (or the loads over a single year
+as relative variability) and do not read `o_fire.nc` fuel loads at face value
+for a multi-decade run.
 
 ## Scientific context / literature
 

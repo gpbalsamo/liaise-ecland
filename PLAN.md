@@ -278,7 +278,7 @@ start, 37 years restart-chained.
 |---|---|---|---|---|---|
 | 15 arcmin | 35 (dedup drops 10) | `cama_flood/data_dam_15min_fixed` | `/perm/pad/liaise_cmf_1988_2024_dam_15min` | 39210410 | **done** 37/37 (05:30:01Z -> 07:29:33Z UTC), scored 1988-2014 (section below) |
 | 6 arcmin | 44 | `cama_flood/data_dam_06min` | `/perm/pad/liaise_cmf_1988_2024_dam_06min` | 39102478 | **done**, scored (sections below) |
-| 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 | 1988-2014 done and scored (section below); ~37 min/yr, hits the 20 h limit ~2019, resume pending |
+| 3 arcmin | 43 | `cama_flood/data_dam_03min` | `/perm/pad/liaise_cmf_1988_2024_dam_03min` | 39210409 + 39593008 | 1988-2018 in job 39210409 (killed at the 20 h limit mid-2019, ~37 min/yr); 2019-2024 resumed from the 2018 restart pair in job 39593008 (`START_YEAR=2019`); 1988-2014 scored (section below) |
 
 The six one-year 15 arcmin roots `/perm/pad/liaise_cmf_1988_2024_dam{,_livnorm,
 _nolapena,_test_noflix_noybY,_test_noybY,_06min_crashed_unpatched}` are the

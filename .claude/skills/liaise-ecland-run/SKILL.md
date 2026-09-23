@@ -49,8 +49,10 @@ Commit choice matters more than it looks:
   write-behind/chunking speedup (`c0526a1`), ~1.6x faster I/O.
 - `55f3d24` — provenance-matched to the committed reference diagnostics, but predates
   the speedup (~3m50s/year vs ~2m59s).
-- `main` HEAD — avoid: carries an *ungated* frozen-soil macropore change that
-  moves `runoff_mm`.
+- `main` HEAD — avoid: it predates the `LECMF1WAY` loop-bound fix and
+  everything since. (The frozen-soil macropore change `ec95cc7` is *not* a
+  reason: it is an ancestor of `develop` and of `55f3d24`, so every run and
+  reference diagnostic in this repository already includes it.)
 - Do **not** cherry-pick `c0526a1` onto an older commit: it sits on top of the
   `LEFIRE` commits and drags `LWRFIRE` code into a tree that has none.
 

@@ -16,6 +16,10 @@
 # compare_eclandpy_versions.py: both read raw netCDF from runs that scratch has since purged
 # (the Fortran control output and output_v3/output_v4). Neither feeds the dashboard itself.
 #
+# The v5 land output is on SCRATCH, not PERM: the first v5 attempt died in 1999 because $PERM
+# was full (10T), so output_v5 and restart_v5 were moved to $V5 below. Only the small products
+# -- the diagnostics JSON, the routed runoff and the page itself -- are written back to PERM.
+#
 # Usage: bash build_dashboard_v5.sh   (normally submitted with --dependency=afterok:<liaise job>)
 
 set -eu
@@ -23,6 +27,7 @@ set -o pipefail
 
 B=/perm/pad/liaise-ecland/eclandpy_bridge
 D=/perm/pad/liaise_discharge_compare
+V5=/ec/res4/scratch/pad/liaise-ecland/eclandpy_v5   # land output lives on SCRATCH: $PERM hit its 10T quota mid-run
 E=/etc/ecmwf/nfs/dh2_perm_a/pad/eclandpy
 YEARS=1988-2024
 
@@ -31,7 +36,7 @@ module load python3/3.11.10-01
 source "$E/.venv-physics/bin/activate"
 
 echo "== stage A: land diagnostics from output_v5 =="
-python3 extract_eclandpy_diagnostics.py --output-root "$B/output_v5" --years "$YEARS" \
+python3 extract_eclandpy_diagnostics.py --output-root "$V5/output_v5" --years "$YEARS" \
         --out "$D/eclandpy_run_diagnostics_v5.json"
 
 NOTE='v5 rebases the port onto upstream ecland-porting main (d61221c): the tile-vector refactor and the IFS host integration, on top of the 10-tile LEURBAN=T configuration introduced in v4.'
@@ -48,7 +53,7 @@ build
 echo "== stage A done: $B/dashboard_eclandpy_v5/index.html (land/energy panels) =="
 
 echo "== submitting the CaMa-Flood-GPU chain for the discharge + GRDC panels =="
-bash submit_cmfgpu_eclandpy_chain.sh 1988 2024 _v5 output_v5
+bash submit_cmfgpu_eclandpy_chain.sh 1988 2024 _v5 "$V5/output_v5"
 sleep 10
 CHAIN=$(squeue -u "$USER" -h -n cmfgpu_eclpy -o %i | tail -1)
 if [ -z "$CHAIN" ]; then

@@ -100,7 +100,7 @@ The same script runs interactively (`run/run_liaise_ecland.sh`, same variables) 
 python3 run/extract_control_diagnostics.py    # domain-mean water balance, T2m, seasonal cycle -> JSON
 ```
 
-*Expect:* precipitation of 640–975 mm/yr, a wet-autumn/dry-summer cycle and a slow T2m warming over 1988–2024 (see `CLAUDE.md`, "37-year control run"). `run/check_water_budget.py` and `run/check_energy_budget.py` (imported from plumber2-ecland) close the raw budgets per year; note they do not yet mask sea points on this domain's output. Note that `Rainf`, `Snowf`, `Qs`, `Qsb`, `Evap` in `o_wat.nc` are rates (kg m⁻² s⁻¹): multiply by the 3600 s output interval before summing.
+*Expect:* precipitation of 640–975 mm/yr, a wet-autumn/dry-summer cycle and a slow T2m warming over 1988–2024 (see `CLAUDE.md`, "37-year control run"). `run/check_water_budget.py` and `run/check_energy_budget.py` (adapted from plumber2-ecland) close the raw budgets per year at every land point, masking sea cells; the energy check judges snow-free points only and the water check excludes open-water evaporation (`EWater`) — see each script's docstring. `python3 -m pytest tests/` runs their tests. Note that `Rainf`, `Snowf`, `Qs`, `Qsb`, `Evap` in `o_wat.nc` are rates (kg m⁻² s⁻¹): multiply by the 3600 s output interval before summing.
 
 ## Running coupled to CaMa-Flood
 

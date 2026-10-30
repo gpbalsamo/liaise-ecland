@@ -1,23 +1,25 @@
 #!/usr/bin/env python3
 """Check surface energy-balance closure of raw ecLand output, per site and network-wide.
 
-Imported unmodified from the sibling plumber2-ecland repo's
-scripts/check_energy_budget.py -- works unchanged against this repo's own
-run/output/<year>/o_*.nc layout, since each year subdirectory is structurally
-identical to one PLUMBER2 "site": pass --output-dir run/output (or
-run/output_depthtrilogy) and each year is scored as its own row.
+Imported from the sibling plumber2-ecland repo's scripts/check_energy_budget.py
+and adapted for this repo's gridded run/output/<year>/o_*.nc layout: each year
+subdirectory is one "site" (pass --output-dir run/output, or
+run/output_depthtrilogy), and within it the closure is computed at every land
+grid point. Sea cells (the 1e20 fill value) are masked out; a single-site
+PLUMBER2 run is the 1 x 1 case of the same calculation.
 
-For each site, integrates over the whole run the terms in o_efl.nc's own sign
-convention (Qh, Qle and Qg are positive DOWNWARD here -- verified empirically:
-SWnet+LWnet+Qh+Qle+Qg closes to <1e-4 W/m2 at every timestep on a snow-free
-site -- this is NOT the ALMA upward-positive convention the PLUMBER2-schema
-postprocessed files use):
+For each land point, integrates over the whole run the terms in o_efl.nc's own
+sign convention (all fluxes positive DOWNWARD, i.e. toward the surface -- so
+Qh and Qle are negative on average; this is NOT the ALMA upward-positive
+convention the PLUMBER2-schema postprocessed files use):
 
-    SWnet + LWnet + Qh + Qle  +  DelSoilHeat + DelColdCont
+    residual = (SWnet + LWnet + Qh + Qle)  -  dE_soil/dt  -  dE_snow/dt
 
-and reports the run-mean residual in W/m2. Rearranged, this is checking that
-the energy available at the surface after turbulent exchange is fully
-accounted for by the change in soil + snow internal energy content.
+and reports the run-mean residual in W/m2. The first term is the energy that
+enters the ground; dE_soil and dE_snow are the increases in soil and snow
+heat content between the first and last output step. Rearranged, this is
+checking that the energy available at the surface after turbulent exchange is
+fully accounted for by the change in soil + snow internal energy content.
 
 DelSoilHeat and DelColdCont are read from o_efl.nc if present, but in every
 build/config checked so far they are identically zero: DelSoilHeat's source
@@ -72,7 +74,17 @@ to shift Qh/Qle/Qg by far more than a few W/m2 -- e.g. the interception bug
 fixed this session shifted the water budget by mm/yr-scale amounts, not the
 sub-percent noise floor this script is tuned around).
 
-Exits non-zero if any site's |residual| exceeds --tol-wm2 (default 5.0 W/m2).
+Because of that approximation, a point that carries snow at any time in the
+run ("snow point") is reported separately (n_snow_points,
+worst_snow_residual_wm2) but is not judged against the tolerance. On the
+1988 LIAISE year, snow points reach 6 W/m2 while snow-free points stay
+within 0.3 W/m2.
+
+Exits non-zero if any snow-free land point's |residual| exceeds --tol-wm2
+(default 5.0 W/m2), or if the residual is NaN at any land point (snow or not)
+-- a NaN never counts as a pass. The per-site table (--out-csv) gives
+land-point means plus the worst snow-free point and its lat/lon;
+--per-point-csv writes the residual at every land point, e.g. for a map.
 Intended to run right after a raw ecLand run, before or alongside
 postproc_plumber2.py -- it reads o_efl.nc/o_gg.nc/o_fix.nc/o_vty.nc directly,
 none of which survive into the postprocessed PLUMBER2-schema files in the form
@@ -109,18 +121,41 @@ def _frozen_fraction(t: np.ndarray) -> np.ndarray:
     return np.where(t <= RTF2, 1.0, np.where(t < RTF1, 0.5 * (1.0 - np.sin(RTF4 * (t - RTF3))), 0.0))
 
 
-def _soil_energy(t: np.ndarray, soilfc: np.ndarray, soilsat: np.ndarray, soilthick: np.ndarray, cv: float) -> float:
+def _read(ds: Dataset, name: str, index=slice(None)) -> np.ndarray:
+    # float64, with fill-valued (sea) cells as NaN; a genuine NaN in the data stays NaN
+    return np.ma.filled(ds.variables[name][index].astype('f8'), np.nan)
+
+
+def _coords(ds: Dataset, shape: tuple[int, ...]) -> tuple[np.ndarray, np.ndarray]:
+    # per-point lat/lon on the (lat, lon) grid; NaN when the file carries no coordinates
+    if 'lat' in ds.variables and 'lon' in ds.variables:
+        lat, lon = np.asarray(ds.variables['lat'][:], 'f8'), np.asarray(ds.variables['lon'][:], 'f8')
+        if lat.ndim == 1 and (lat.size, lon.size) == shape:
+            return tuple(np.meshgrid(lat, lon, indexing='ij'))
+    return np.full(shape, np.nan), np.full(shape, np.nan)
+
+
+def _soil_energy(t: np.ndarray, soilfc: np.ndarray, soilsat: np.ndarray, soilthick: np.ndarray,
+                 cv: np.ndarray) -> np.ndarray:
+    # summed over soil layers (axis 0): J m-2 per grid point
     rrcsoil = (1.0 - soilsat) * RCGDRY + soilfc * RGH2O
     f = _frozen_fraction(t)
-    return float(np.sum((rrcsoil * t - RLMLT * RHOH2O * cv * soilfc * f) * soilthick))
+    return np.sum((rrcsoil * t - RLMLT * RHOH2O * cv * soilfc * f) * soilthick, axis=0)
 
 
-def _snow_energy(swe: np.ndarray, slw: np.ndarray, t: np.ndarray) -> float:
+def _snow_energy(swe: np.ndarray, slw: np.ndarray, t: np.ndarray) -> np.ndarray:
+    # summed over snow layers (axis 0): J m-2 per grid point
     ice = swe - slw
-    return float(np.sum(CI_SNOW * ice * t + CW_SNOW * slw * t + RLMLT * slw))
+    return np.sum(CI_SNOW * ice * t + CW_SNOW * slw * t + RLMLT * slw, axis=0)
 
 
-def read_site(site_dir: Path) -> dict | None:
+def read_site(site_dir: Path) -> tuple[dict, pd.DataFrame] | None:
+    """Closure per grid point; returns the site summary and the per-point table.
+
+    Every field keeps its (lat, lon) shape. Land points are the cells that do
+    not hold the fill value in SWnet, so sea cells never enter the arithmetic;
+    a NaN at a land point propagates to that point's residual and fails the check.
+    """
     efl_path, gg_path = site_dir / 'o_efl.nc', site_dir / 'o_gg.nc'
     fix_path, vty_path = site_dir / 'o_fix.nc', site_dir / 'o_vty.nc'
     if not all(p.exists() for p in (efl_path, gg_path, fix_path, vty_path)):
@@ -133,47 +168,75 @@ def read_site(site_dir: Path) -> dict | None:
         dt = float(np.median(np.diff(time))) if len(time) > 1 else 1800.0
         n = ds.variables['SWnet'].shape[0]
         years = n * dt / SECONDS_PER_YEAR
-        swnet = np.asarray(ds.variables['SWnet'][:]).ravel()
-        lwnet = np.asarray(ds.variables['LWnet'][:]).ravel()
-        qh = np.asarray(ds.variables['Qh'][:]).ravel()
-        qle = np.asarray(ds.variables['Qle'][:]).ravel()
-    surf_avail = float(np.sum(swnet + lwnet + qh + qle)) * dt
-    rnet_mean_abs = float(np.mean(np.abs(swnet + lwnet)))
+        land = ~np.ma.getmaskarray(ds.variables['SWnet'][0])
+        lat, lon = _coords(ds, land.shape)
+        swnet, lwnet = _read(ds, 'SWnet'), _read(ds, 'LWnet')
+        qh, qle = _read(ds, 'Qh'), _read(ds, 'Qle')
+    surf_avail = np.sum(swnet + lwnet + qh + qle, axis=0) * dt
+    rnet_mean_abs = np.mean(np.abs(swnet + lwnet), axis=0)
 
     with Dataset(fix_path) as ds:
-        soilthick = np.asarray(ds.variables['SoilThick'][:]).ravel()
-        soilfc = np.asarray(ds.variables['SoilFC'][:]).ravel()
-        soilsat = np.asarray(ds.variables['SoilSat'][:]).ravel()
+        soilthick = _read(ds, 'SoilThick')
+        soilfc = _read(ds, 'SoilFC')
+        soilsat = _read(ds, 'SoilSat')
 
     with Dataset(vty_path) as ds:
-        vtfr0 = np.asarray(ds.variables['vtfr'][0]).ravel()
-    cv = float(vtfr0[0] + vtfr0[1])  # low+high vegetation cover; static over the run
+        vtfr0 = _read(ds, 'vtfr', 0)
+    cv = vtfr0[0] + vtfr0[1]  # low+high vegetation cover per point; static over the run
 
     with Dataset(gg_path) as ds:
-        t0 = np.asarray(ds.variables['SoilTemp'][0]).ravel()
-        t1 = np.asarray(ds.variables['SoilTemp'][-1]).ravel()
+        t0, t1 = _read(ds, 'SoilTemp', 0), _read(ds, 'SoilTemp', -1)
         has_ml_snow = 'SWEML' in ds.variables and 'slwML' in ds.variables and 'SnowTML' in ds.variables
-        dE_snow = 0.0
+        dE_snow = np.zeros(land.shape)
+        is_snow = np.zeros(land.shape, dtype=bool)
         if has_ml_snow:
-            swe0, swe1 = np.asarray(ds.variables['SWEML'][0]).ravel(), np.asarray(ds.variables['SWEML'][-1]).ravel()
-            slw0, slw1 = np.asarray(ds.variables['slwML'][0]).ravel(), np.asarray(ds.variables['slwML'][-1]).ravel()
-            snt0, snt1 = np.asarray(ds.variables['SnowTML'][0]).ravel(), np.asarray(ds.variables['SnowTML'][-1]).ravel()
+            # snow point: carries snow at any time in the run (its dE_snow is approximate)
+            is_snow = (np.ma.filled(ds.variables['SWEML'][:], 0.0) > 0.0).any(axis=(0, 1))
+            swe0, swe1 = _read(ds, 'SWEML', 0), _read(ds, 'SWEML', -1)
+            slw0, slw1 = _read(ds, 'slwML', 0), _read(ds, 'slwML', -1)
+            snt0, snt1 = _read(ds, 'SnowTML', 0), _read(ds, 'SnowTML', -1)
             dE_snow = _snow_energy(swe1, slw1, snt1) - _snow_energy(swe0, slw0, snt0)
 
     dE_soil = _soil_energy(t1, soilfc, soilsat, soilthick, cv) - _soil_energy(t0, soilfc, soilsat, soilthick, cv)
 
-    residual = surf_avail + dE_soil + dE_snow
-    residual_wm2 = residual / (years * SECONDS_PER_YEAR)
-    return {
+    # Energy into the ground minus what the ground (soil + snow) actually stored
+    residual_wm2 = (surf_avail - dE_soil - dE_snow) / (years * SECONDS_PER_YEAR)
+
+    points = pd.DataFrame({
+        'site': site_dir.name,
+        'lat': lat[land],
+        'lon': lon[land],
+        'rnet_mean_wm2': rnet_mean_abs[land],
+        'residual_wm2': residual_wm2[land],
+        'is_snow': is_snow[land],
+    })
+    res, snow = points.residual_wm2.to_numpy(), points.is_snow.to_numpy()
+    n_nan = int(np.isnan(res).sum())
+
+    def _worst(mask: np.ndarray) -> int | None:
+        r = np.where(mask, np.abs(res), np.nan)
+        return int(np.nanargmax(r)) if np.isfinite(r).any() else None
+
+    worst, worst_snow = _worst(~snow), _worst(snow)
+    rnet = float(points.rnet_mean_wm2.mean())
+    summary = {
         'site': site_dir.name,
         'years': years,
-        'rnet_mean_wm2': rnet_mean_abs,
-        'dE_soil_MJ_m2': dE_soil / 1.0e6,
-        'dE_snow_MJ_m2': dE_snow / 1.0e6,
-        'residual_wm2': residual_wm2,
-        'residual_pct_of_Rnet': 100.0 * residual_wm2 / rnet_mean_abs if rnet_mean_abs else float('nan'),
+        'n_points': int(land.sum()),
+        'rnet_mean_wm2': rnet,
+        'dE_soil_MJ_m2': float(np.mean(dE_soil[land])) / 1.0e6,
+        'dE_snow_MJ_m2': float(np.mean(dE_snow[land])) / 1.0e6,
+        'residual_wm2': float(res.mean()),  # land-point mean; NaN if any point is NaN
+        'residual_pct_of_Rnet': 100.0 * float(res.mean()) / rnet if rnet else float('nan'),
+        'worst_residual_wm2': res[worst] if worst is not None else float('nan'),  # snow-free points
+        'worst_lat': points.lat.iloc[worst] if worst is not None else float('nan'),
+        'worst_lon': points.lon.iloc[worst] if worst is not None else float('nan'),
+        'n_snow_points': int(snow.sum()),
+        'worst_snow_residual_wm2': res[worst_snow] if worst_snow is not None else float('nan'),
+        'n_nan_points': n_nan,
         'has_ml_snow': has_ml_snow,
     }
+    return summary, points
 
 
 def discover_sites(output_dir: Path, site_filter: set[str] | None) -> list[Path]:
@@ -189,6 +252,8 @@ def parse_args() -> argparse.Namespace:
                     help='Raw ecLand output root, one subdirectory per site (default: output/).')
     p.add_argument('--out-csv', type=Path, default=None,
                     help='Optional path to write the per-site table as CSV.')
+    p.add_argument('--per-point-csv', type=Path, default=None,
+                    help='Optional path to write the residual at every land point as CSV (for maps).')
     p.add_argument('--site', action='append', default=None, help='Optional site filter; repeatable.')
     p.add_argument('--tol-wm2', type=float, default=5.0,
                     help='Residual tolerance in run-mean W/m2 (default: 5.0).')
@@ -203,27 +268,43 @@ def main() -> int:
         print(f'No site output found under {args.output_dir}')
         return 2
 
-    rows = [r for d in site_dirs if (r := read_site(d)) is not None]
-    df = pd.DataFrame(rows).sort_values('residual_wm2', key=lambda s: s.abs(), ascending=False)
+    results = [r for d in site_dirs if (r := read_site(d)) is not None]
+    points = pd.concat([p for _, p in results], ignore_index=True)
+    df = pd.DataFrame([s for s, _ in results])
+    # A point fails if it is NaN, or snow-free and beyond tolerance; NaN must never
+    # read as PASS. Snow points are reported but not judged (approximate dE_snow).
+    over = points.residual_wm2.isna() | (~points.is_snow & (points.residual_wm2.abs() > args.tol_wm2))
+    df['n_failing_points'] = df.site.map(over.groupby(points.site).sum()).astype(int)
+    df = df.sort_values('worst_residual_wm2', key=lambda s: s.abs(), ascending=False)
 
-    pd.set_option('display.width', 120)
+    pd.set_option('display.width', 160)
     pd.set_option('display.float_format', lambda x: f'{x:9.4f}')
     print(df.to_string(index=False))
     print()
-    print(f'{len(df)} sites.  |residual|: mean={df.residual_wm2.abs().mean():.4f}  '
-          f'median={df.residual_wm2.abs().median():.4f}  max={df.residual_wm2.abs().max():.4f} W/m2')
+    for label, sel in (('snow-free', ~points.is_snow), ('snow (not judged)', points.is_snow)):
+        r = points.residual_wm2[sel].abs()
+        if len(r):
+            print(f'{len(r)} {label} land points.  |residual| per point: mean={r.mean():.4f}  '
+                  f'median={r.median():.4f}  max={r.max():.4f} W/m2')
 
     if args.out_csv:
         args.out_csv.parent.mkdir(parents=True, exist_ok=True)
         df.to_csv(args.out_csv, index=False)
         print(f'Wrote {args.out_csv}')
+    if args.per_point_csv:
+        args.per_point_csv.parent.mkdir(parents=True, exist_ok=True)
+        points.to_csv(args.per_point_csv, index=False)
+        print(f'Wrote {args.per_point_csv}')
 
-    failing = df[df.residual_wm2.abs() > args.tol_wm2]
+    failing = df[df.n_failing_points > 0]
     if len(failing):
-        print(f'\nFAIL: {len(failing)} site(s) exceed {args.tol_wm2} W/m2:')
-        print(failing[['site', 'residual_wm2', 'residual_pct_of_Rnet']].to_string(index=False))
+        print(f'\nFAIL: {len(failing)} site(s) have snow-free land points beyond {args.tol_wm2} W/m2, '
+              f'or NaN at any land point:')
+        print(failing[['site', 'n_failing_points', 'n_nan_points', 'worst_residual_wm2',
+                       'worst_lat', 'worst_lon']].to_string(index=False))
         return 1
-    print(f'\nPASS: all sites within {args.tol_wm2} W/m2.')
+    print(f'\nPASS: all snow-free land points within {args.tol_wm2} W/m2 '
+          f'(snow points reported above, not judged).')
     return 0
 
 

@@ -2018,6 +2018,9 @@ Two genuine, unrelated things noticed while chasing this: `srfsn_driver_mod.F90`
 initialising it on snow-free points, and `run/check_water_budget.py` returns
 absurd totals on this domain's output (it does not mask sea/missing points
 despite its docstring) -- neither affects the runs documented here.
+(Budget scripts fixed 2026-10-29: both now mask sea cells and close per land
+point, NaN fails, the energy storage sign is corrected and EWater is excluded
+from the water balance; tests in tests/test_budget_scripts.py.)
 
 ### LEFIRE fire-danger switch tested on LIAISE (2026-09-21)
 

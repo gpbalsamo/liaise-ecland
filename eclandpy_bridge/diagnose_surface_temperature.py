@@ -13,6 +13,16 @@ putting three series on the same cells and time stamps:
 B - A is the definitional offset inside the Fortran itself; C - B is the actual port difference.
 Reported as a monthly climatology, a JJA/DJF diurnal cycle, and split by cells with lake cover.
 
+WARNING (found 2026-10-30): the per-year numbers this writes are NOT reliable -- use the monthly
+climatology instead. All three annual series are inconsistent with their own monthly climatology
+(month-length-weighted monthly minus annual: A +0.256 K, B +0.118 K, C +0.125 K in
+surface_temperature_decomposition_v4.json), whereas compare_skin_temperature.py, which does the
+same domain mean without the cross-model time matching below, closes to +0.000 K. The likely
+cause is the `n = min(len(A), len(B), len(C))` truncation: when eclandpy's timestamps only
+partly intersect the Fortran file's, all three arrays are cut to their first n records, i.e. to
+the colder early part of the year, which biases the annual mean but leaves the monthly
+climatology largely intact. Unverified -- the control netCDF was purged before this was found.
+
 Usage:
   python3 diagnose_surface_temperature.py --years 1988-2024 --eclandpy output_v2 \
       --out /perm/pad/liaise_discharge_compare/surface_temperature_decomposition.json
